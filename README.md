@@ -75,5 +75,3 @@ Conectarse a la red, abrir `http://192.168.4.1` y configurar SSID local y broker
 ## Licencia
 
 GNU General Public License v3.0 — ver [LICENSE](LICENSE).
-
-Copyright (C) 2024 José Antonio Hernández

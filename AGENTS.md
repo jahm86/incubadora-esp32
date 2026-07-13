@@ -53,6 +53,52 @@ log_e("Fallo: %s", error.c_str());    // strings
 - Constantes en UPPER_CASE
 - Usar `#pragma once` en vez de include guards
 
+## Comunicación serial con el ESP32
+Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python y no obtiene respuesta tras varios intentos, debe pedir ayuda al desarrollador para que ejecute `pio device monitor` o lea el serial manualmente. El agente no debe insistir con intentos automáticos repetitivos.
+
+## Estructura del proyecto
+```
+.
+├── platformio.ini
+├── data/
+│   ├── index.html
+│   ├── script.js
+│   └── style.css
+├── include/
+│   ├── config/
+│   │   ├── mqtt_topics.h
+│   │   ├── pins.h
+│   │   └── settings.h
+│   ├── control/
+│   │   ├── ARDCController.h
+│   │   ├── IController.h
+│   │   └── PIDController.h
+│   ├── core/
+│   │   ├── AppState.h
+│   │   └── ConfigManager.h
+│   ├── display/
+│   │   ├── DisplayManager.h
+│   │   └── MenuSystem.h
+│   ├── input/
+│   │   └── RotaryEncoder.h
+│   ├── network/
+│   │   ├── MqttManager.h
+│   │   └── WiFiManager.h
+│   ├── output/
+│   │   ├── Buzzer.h
+│   │   ├── EggTray.h
+│   │   ├── Heater.h
+│   │   └── Humidifier.h
+│   ├── sensor/
+│   │   └── AM2120.h
+│   ├── types.h
+│   └── web/
+│       └── WebServer.h
+└── src/
+    ├── ConfigManager.cpp
+    └── main.cpp
+```
+
 ## Estado actual
 - ConfigManager completo: saves atómicos, backup, validación, factory reset, versionado
 - WiFi AP + web server funcionales, con modo STA cuando se configura SSID
