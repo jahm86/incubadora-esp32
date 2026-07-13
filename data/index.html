@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incubadora - Configuración</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Incubadora ESP32</h1>
+
+        <div class="section" id="wifi-section">
+            <h2>Red WiFi</h2>
+            <form id="wifi-form">
+                <label>SSID</label>
+                <input type="text" id="ssid" required>
+
+                <label>Password</label>
+                <input type="password" id="password">
+
+                <label>
+                    <input type="checkbox" id="use-static-ip"> IP Estática
+                </label>
+
+                <div id="static-ip-fields" class="hidden">
+                    <label>IP</label>
+                    <input type="text" id="static-ip" placeholder="192.168.1.100">
+                    <label>Gateway</label>
+                    <input type="text" id="static-gateway" placeholder="192.168.1.1">
+                    <label>Máscara</label>
+                    <input type="text" id="static-netmask" placeholder="255.255.255.0">
+                </div>
+            </form>
+        </div>
+
+        <div class="section" id="mqtt-section">
+            <h2>MQTT</h2>
+            <form id="mqtt-form">
+                <label>Servidor</label>
+                <input type="text" id="mqtt-server">
+
+                <label>Puerto</label>
+                <input type="number" id="mqtt-port" value="1883">
+
+                <label>Usuario</label>
+                <input type="text" id="mqtt-user">
+
+                <label>Password</label>
+                <input type="password" id="mqtt-password">
+
+                <label>
+                    <input type="checkbox" id="mqtt-tls"> Usar TLS
+                </label>
+
+                <div id="tls-fields" class="hidden">
+                    <label>Certificado CA (PEM)</label>
+                    <textarea id="mqtt-cert" rows="5"></textarea>
+                </div>
+            </form>
+        </div>
+
+        <div class="section">
+            <h2>Configuración General</h2>
+            <form id="general-form">
+                <label>Temp Offset (°C)</label>
+                <input type="number" id="temp-offset" step="0.1" value="0">
+
+                <label>Hum Offset (%)</label>
+                <input type="number" id="hum-offset" step="0.1" value="0">
+
+                <label>Setpoint (°C)</label>
+                <input type="number" id="setpoint" step="0.1" value="37.5">
+
+                <label>Alarma Temp Alta (°C)</label>
+                <input type="number" id="temp-alarm-high" step="0.1" value="38.5">
+
+                <label>Alarma Temp Baja (°C)</label>
+                <input type="number" id="temp-alarm-low" step="0.1" value="36.5">
+
+                <label>Hum On (%)</label>
+                <input type="number" id="hum-on" step="0.5" value="55">
+
+                <label>Hum Off (%)</label>
+                <input type="number" id="hum-off" step="0.5" value="65">
+
+                <label>Alarma Hum Alta (%)</label>
+                <input type="number" id="hum-alarm-high" step="0.5" value="75">
+
+                <label>Alarma Hum Baja (%)</label>
+                <input type="number" id="hum-alarm-low" step="0.5" value="40">
+
+                <label>Intervalo Volteo (min)</label>
+                <input type="number" id="turn-interval" value="240">
+
+                <label>Duración Volteo (seg)</label>
+                <input type="number" id="turn-duration" value="5">
+
+                <label>Tipo Controlador</label>
+                <select id="controller-type">
+                    <option value="0">ARDC</option>
+                    <option value="1">PID</option>
+                </select>
+            </form>
+        </div>
+
+        <div class="buttons">
+            <button id="save-btn" class="btn btn-primary">Guardar y Reiniciar</button>
+        </div>
+
+        <div id="status" class="hidden"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
