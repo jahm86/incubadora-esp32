@@ -6,7 +6,8 @@
 #include "sensor/AM2120.h"
 #include "control/IController.h"
 #include "control/PIDController.h"
-#include "control/ARDCController.h"
+#include "control/HysteresisController.h"
+#include "control/LADRCController.h"
 #include "display/DisplayManager.h"
 #include "display/MenuSystem.h"
 #include "input/RotaryEncoder.h"
@@ -21,8 +22,9 @@
 AppState          appState;
 ConfigManager     configManager;
 AM2120            sensor;
-PIDController     pidController(Settings::DEFAULT_KP, Settings::DEFAULT_KI, Settings::DEFAULT_KD);
-ARDCController    ardcController(Settings::DEFAULT_HYSTERESIS);
+PIDController          pidController(Settings::DEFAULT_KP, Settings::DEFAULT_KI, Settings::DEFAULT_KD);
+HysteresisController   hysteresisController(Settings::DEFAULT_HYSTERESIS);
+LADRCController        ladrcController(Settings::DEFAULT_B0, Settings::DEFAULT_WC, Settings::DEFAULT_WO);
 IController*      activeController = nullptr;
 DisplayManager    display;
 MenuSystem        menuSystem;
@@ -54,14 +56,28 @@ void initController() {
     if (activeController) {
         activeController->reset();
     }
-    if (appState.controllerType() == Settings::ControllerType::PID) {
-        pidController.setTunings(appState.config().kp, appState.config().ki, appState.config().kd);
-        pidController.setSetpoint(appState.config().setpoint);
-        activeController = &pidController;
-    } else {
-        ardcController.setHysteresis(appState.config().hysteresis);
-        ardcController.setSetpoint(appState.config().setpoint);
-        activeController = &ardcController;
+
+    float Ts = Settings::CONTROL_INTERVAL_MS / 1000.0f;
+
+    switch (appState.controllerType()) {
+        case Settings::ControllerType::PID:
+            pidController.setTunings(appState.config().kp, appState.config().ki, appState.config().kd);
+            pidController.setTs(Ts);
+            pidController.setSetpoint(appState.config().setpoint);
+            activeController = &pidController;
+            break;
+        case Settings::ControllerType::LADRC:
+            ladrcController.setTunings(appState.config().b0, appState.config().wc, appState.config().wo);
+            ladrcController.setTs(Ts);
+            ladrcController.setSetpoint(appState.config().setpoint);
+            activeController = &ladrcController;
+            break;
+        default:
+            hysteresisController.setHysteresis(appState.config().hysteresis);
+            hysteresisController.setTs(Ts);
+            hysteresisController.setSetpoint(appState.config().setpoint);
+            activeController = &hysteresisController;
+            break;
     }
     activeController->begin();
 }
@@ -196,7 +212,7 @@ void onEncoderValueChange(int delta) {
         case 11: // Tipo controlador
             {
                 int val = appState.config().controllerType + (delta > 0 ? 1 : -1);
-                val = constrain(val, 0, 1);
+                val = constrain(val, 0, 2);
                 appState.config().controllerType = val;
                 initController();
                 syncAndSaveConfig();
@@ -206,7 +222,10 @@ void onEncoderValueChange(int delta) {
         case 13: target = &appState.config().ki; step = 0.1f; break;
         case 14: target = &appState.config().kd; step = 1.0f; break;
         case 15: target = &appState.config().hysteresis; step = 0.1f; break;
-        case 16: // Reset dias
+        case 16: target = &appState.config().b0; step = 1.0f; break;
+        case 17: target = &appState.config().wc; step = 1.0f; break;
+        case 18: target = &appState.config().wo; step = 1.0f; break;
+        case 19: // Reset dias
             configManager.setIncubationDays(0);
             appState.setIncubationDays(0);
             incubationStart = millis();
@@ -260,7 +279,15 @@ void setup() {
 
     initController();
     incubationStart = millis();
-    log_d("Controller: %s", activeController ? (appState.controllerType() == Settings::ControllerType::PID ? "PID" : "ARDC") : "none");
+    {
+        const char* name = "none";
+        switch (appState.controllerType()) {
+            case Settings::ControllerType::PID:       name = "PID";       break;
+            case Settings::ControllerType::LADRC:     name = "LADRC";    break;
+            default:                                   name = "Hysteresis"; break;
+        }
+        log_d("Controller: %s", name);
+    }
 
     if (appState.config().ssid.length() > 0) {
         log_i("Connecting to STA %s", appState.config().ssid.c_str());
@@ -372,10 +399,13 @@ void loop() {
                 case 9:  val = appState.config().turnInterval;   unit = "m"; label = "Int. Volteo"; break;
                 case 10: val = appState.config().turnDuration;   unit = "s"; label = "Dur. Volteo"; break;
                 case 11: val = appState.config().controllerType; unit = "";  label = "Controlador"; break;
-                case 12: val = appState.config().kp;             unit = "";  label = "Kp"; break;
-                case 13: val = appState.config().ki;             unit = "";  label = "Ki"; break;
-                case 14: val = appState.config().kd;             unit = "";  label = "Kd"; break;
-                case 15: val = appState.config().hysteresis;     unit = "C"; label = "Histeresis"; break;
+                case 12: val = appState.config().kp;             unit = "";  label = "Kp (PID)"; break;
+                case 13: val = appState.config().ki;             unit = "";  label = "Ki (PID)"; break;
+                case 14: val = appState.config().kd;             unit = "";  label = "Kd (PID)"; break;
+                case 15: val = appState.config().hysteresis;     unit = "C"; label = "Histeresis (Hyst)"; break;
+                case 16: val = appState.config().b0;             unit = "";  label = "b0 (LADRC)"; break;
+                case 17: val = appState.config().wc;             unit = "";  label = "wc (LADRC)"; break;
+                case 18: val = appState.config().wo;             unit = "";  label = "wo (LADRC)"; break;
                 default: break;
             }
             display.drawEditValue(label, val, unit);

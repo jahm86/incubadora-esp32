@@ -2,9 +2,9 @@
 
 #include "IController.h"
 
-class ARDCController : public IController {
+class HysteresisController : public IController {
 public:
-    ARDCController(float hysteresis) : m_hysteresis(hysteresis) {}
+    HysteresisController(float hysteresis) : m_hysteresis(hysteresis) {}
 
     void begin() override {
         m_heaterOn = false;

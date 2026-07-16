@@ -95,7 +95,7 @@ public:
     static const uint8_t MAIN_ITEM_COUNT = 1;
 
     static const char* CONFIG_ITEMS[];
-    static const uint8_t CONFIG_ITEM_COUNT = 18;
+    static const uint8_t CONFIG_ITEM_COUNT = 21;
 
 private:
     MenuPage m_currentPage = MenuPage::Main;
@@ -124,5 +124,6 @@ const char* MenuSystem::CONFIG_ITEMS[] = {
     "Alarma Hum Alta", "Alarma Hum Baja",
     "Intervalo Volteo", "Duracion Volteo",
     "Tipo Controlador", "Kp (PID)", "Ki (PID)", "Kd (PID)",
-    "Histeresis (ARDC)", "Reset Dias", "Volver"
+    "Histeresis (Hyst)", "b0 (LADRC)", "wc (LADRC)", "wo (LADRC)",
+    "Reset Dias", "Volver"
 };

@@ -71,6 +71,9 @@ bool ConfigManager::load() {
     m_config.ki             = doc["ki"] | Settings::DEFAULT_KI;
     m_config.kd             = doc["kd"] | Settings::DEFAULT_KD;
     m_config.hysteresis     = doc["hysteresis"] | Settings::DEFAULT_HYSTERESIS;
+    m_config.b0             = doc["b0"] | Settings::DEFAULT_B0;
+    m_config.wc             = doc["wc"] | Settings::DEFAULT_WC;
+    m_config.wo             = doc["wo"] | Settings::DEFAULT_WO;
     m_incubationDays        = doc["incubation_days"] | 0;
 
     validateAndClamp();
@@ -127,6 +130,9 @@ void ConfigManager::resetToDefaults() {
     m_config.ki             = Settings::DEFAULT_KI;
     m_config.kd             = Settings::DEFAULT_KD;
     m_config.hysteresis     = Settings::DEFAULT_HYSTERESIS;
+    m_config.b0             = Settings::DEFAULT_B0;
+    m_config.wc             = Settings::DEFAULT_WC;
+    m_config.wo             = Settings::DEFAULT_WO;
     m_incubationDays        = 0;
     m_dirty                 = true;
     log_w("Config factory reset");
@@ -199,6 +205,9 @@ bool ConfigManager::writeToFile(const char* path) {
     doc["ki"]               = m_config.ki;
     doc["kd"]               = m_config.kd;
     doc["hysteresis"]       = m_config.hysteresis;
+    doc["b0"]               = m_config.b0;
+    doc["wc"]               = m_config.wc;
+    doc["wo"]               = m_config.wo;
     doc["incubation_days"]  = m_incubationDays;
 
     size_t bytes = serializeJson(doc, file);
@@ -247,6 +256,9 @@ void ConfigManager::validateAndClamp() {
     m_config.ki             = constrain(m_config.ki, 0.0f, 100.0f);
     m_config.kd             = constrain(m_config.kd, 0.0f, 100.0f);
     m_config.hysteresis     = constrain(m_config.hysteresis, 0.1f, 5.0f);
+    m_config.b0             = constrain(m_config.b0, 1.0f, 1000.0f);
+    m_config.wc             = constrain(m_config.wc, 0.1f, 500.0f);
+    m_config.wo             = constrain(m_config.wo, 0.1f, 500.0f);
 }
 
 bool ConfigManager::migrateConfig(JsonDocument& doc, uint32_t fileVersion) {

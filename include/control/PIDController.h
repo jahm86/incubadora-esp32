@@ -24,10 +24,10 @@ public:
     float compute(float input, float setpoint) override {
         float error = setpoint - input;
 
-        m_integral += error * m_dt;
+        m_integral += error * m_Ts;
         m_integral = constrain(m_integral, -m_limit, m_limit);
 
-        float derivative = (error - m_prevError) / m_dt;
+        float derivative = (error - m_prevError) / m_Ts;
         m_prevError = error;
 
         float output = m_kp * error + m_ki * m_integral + m_kd * derivative;
@@ -45,5 +45,4 @@ private:
     float m_integral = 0.0f;
     float m_prevError = 0.0f;
     float m_limit = 100.0f;
-    float m_dt = 1.0f;
 };

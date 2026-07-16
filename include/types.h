@@ -46,6 +46,9 @@ struct SystemConfig {
     float ki                = 0.5f;
     float kd                = 10.0f;
     float hysteresis        = 0.3f;
+    float b0                = 25.0f;
+    float wc                = 15.0f;
+    float wo                = 60.0f;
 };
 
 enum class MenuPage : uint8_t {

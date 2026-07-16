@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Incubadora - Configuración</title>
+    <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -98,9 +99,33 @@
 
                 <label>Tipo Controlador</label>
                 <select id="controller-type">
-                    <option value="0">ARDC</option>
+                    <option value="0">Histeresis</option>
                     <option value="1">PID</option>
+                    <option value="2">LADRC</option>
                 </select>
+
+                <div id="ctrl-hysteresis" class="ctrl-params hidden">
+                    <label>Histeresis (°C)</label>
+                    <input type="number" id="hysteresis" step="0.1" value="0.3">
+                </div>
+
+                <div id="ctrl-pid" class="ctrl-params hidden">
+                    <label>Kp</label>
+                    <input type="number" id="kp" step="1" value="30">
+                    <label>Ki</label>
+                    <input type="number" id="ki" step="0.1" value="0.5">
+                    <label>Kd</label>
+                    <input type="number" id="kd" step="1" value="10">
+                </div>
+
+                <div id="ctrl-ladrc" class="ctrl-params hidden">
+                    <label>b0</label>
+                    <input type="number" id="b0" step="1" value="25">
+                    <label>wc (ancho de banda del controlador)</label>
+                    <input type="number" id="wc" step="1" value="15">
+                    <label>wo (ancho de banda del observador)</label>
+                    <input type="number" id="wo" step="1" value="60">
+                </div>
             </form>
         </div>
 

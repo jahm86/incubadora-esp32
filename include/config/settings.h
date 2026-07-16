@@ -18,17 +18,22 @@ constexpr uint32_t DEFAULT_TURN_DURATION    = 5;
 constexpr uint32_t DEFAULT_INCUBATION_DAYS = 21;
 
 enum class ControllerType : uint8_t {
-    ARDC = 0,
-    PID  = 1
+    Hysteresis = 0,
+    PID        = 1,
+    LADRC      = 2
 };
 
-constexpr ControllerType DEFAULT_CONTROLLER = ControllerType::ARDC;
+constexpr ControllerType DEFAULT_CONTROLLER = ControllerType::Hysteresis;
 
 constexpr float DEFAULT_KP = 30.0f;
 constexpr float DEFAULT_KI = 0.5f;
 constexpr float DEFAULT_KD = 10.0f;
 
 constexpr float DEFAULT_HYSTERESIS = 0.3f;
+
+constexpr float DEFAULT_B0 = 25.0f;
+constexpr float DEFAULT_WC = 15.0f;
+constexpr float DEFAULT_WO = 60.0f;
 
 constexpr uint32_t SENSOR_INTERVAL_MS      = 2000;
 constexpr uint32_t CONTROL_INTERVAL_MS      = 1000;
