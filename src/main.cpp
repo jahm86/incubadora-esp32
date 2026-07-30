@@ -3,7 +3,7 @@
 #include "config/settings.h"
 #include "core/AppState.h"
 #include "core/ConfigManager.h"
-#include "sensor/AM2120.h"
+#include "sensor/AHT30.h"
 #include "control/IController.h"
 #include "control/PIDController.h"
 #include "control/HysteresisController.h"
@@ -21,7 +21,7 @@
 
 AppState          appState;
 ConfigManager     configManager;
-AM2120            sensor;
+AHT30             sensor;
 PIDController          pidController(Settings::DEFAULT_KP, Settings::DEFAULT_KI, Settings::DEFAULT_KD);
 HysteresisController   hysteresisController(Settings::DEFAULT_HYSTERESIS);
 LADRCController        ladrcController(Settings::DEFAULT_B0, Settings::DEFAULT_WC, Settings::DEFAULT_WO);

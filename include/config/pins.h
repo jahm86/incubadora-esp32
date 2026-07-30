@@ -1,6 +1,7 @@
 #pragma once
 
-#define PIN_SENSOR_DATA      4
+#define PIN_SENSOR_SDA       21
+#define PIN_SENSOR_SCL       22
 
 #define PIN_TFT_MOSI         23
 #define PIN_TFT_SCLK         18
