@@ -1,17 +1,17 @@
 # Incubadora ESP32
 
-Controlador de incubadora para ESP32 con sensor AM2120, pantalla TFT ST7789, encoder rotativo, MQTT/TLS y servidor web de configuración.
+Controlador de incubadora para ESP32 con sensor AHT30, pantalla TFT ST7789, encoder rotativo, MQTT/TLS y servidor web de configuración.
 
 ## Hardware
 
-| Componente | Pin |
+| Componente | Pines |
 |---|---|
-| Sensor AM2120 | GPIO 4 |
+| Sensor AHT30 (I2C) | SDA 21, SCL 22 |
 | TFT ST7789 SPI | MOSI 23, SCLK 18, CS 5, DC 17, RST 16, BL 19 |
-| Encoder KY-040 | CLK 32, DT 33, SW 34 |
-| Buzzer | GPIO 14 |
-| Calefactor (PWM) | GPIO 26 |
-| Humidificador | GPIO 27 |
+| Encoder KY-040 | CLK 32, DT 33, SW 25 |
+| Buzzer | GPIO 26 |
+| Calefactor (PWM) | GPIO 27 |
+| Humidificador | GPIO 14 |
 | Motor volteo | GPIO 13 |
 
 Ver `include/config/pins.h` para más detalle.
@@ -19,7 +19,7 @@ Ver `include/config/pins.h` para más detalle.
 ## Funcionalidades
 
 - Medición de temperatura y humedad con offset configurable
-- Control PID o ARDC para calefactor (seleccionable en menú)
+- Control PID, Hysteresis o LADRC para calefactor (seleccionable en menú)
 - Control ON/OFF de humidificador por histéresis
 - Volteo de huevos programable (intervalo + duración)
 - Conteo de días de incubación
@@ -68,7 +68,7 @@ Conectarse a la red, abrir `http://192.168.4.1` y configurar SSID local y broker
 | `bodmer/TFT_eSPI` | Controlador de pantalla |
 | `theelims/PsychicMqttClient` | Cliente MQTT asíncrono con TLS |
 | `hoeken/PsychicHttp` | Servidor web asíncrono |
-| `adafruit/DHT sensor library` | Sensor AM2120 |
+| `adafruit/Adafruit AHTX0` | Sensor AHT30 (I2C) |
 | `maffooclock/ESP32RotaryEncoder` | Encoder rotativo |
 | `bblanchon/ArduinoJson` | Persistencia JSON |
 

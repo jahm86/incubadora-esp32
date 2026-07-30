@@ -5,10 +5,10 @@
 - **Display**: TFT_eSPI para ST7789 240x280 SPI
 - **MQTT**: PsychicMqttClient (asíncrono, con soporte TLS)
 - **Web Server**: PsychicHttp (asíncrono, sirve archivos desde SPIFFS)
-- **Sensor**: AM2120 (protocolo 1-wire compatible DHT, usar Adafruit DHT library)
+- **Sensor**: AHT30 (I2C, usar Adafruit AHTX0 library)
 - **Encoder**: ESP32RotaryEncoder (por MaffooClock)
 - **Persistencia**: SPIFFS + JSON con ArduinoJson
-- **Control térmico**: Clase abstracta IController, implementaciones PID y ARDC
+- **Control térmico**: Clase abstracta IController, implementaciones PID, Hysteresis y LADRC
 
 ## Comandos útiles
 ```bash
@@ -70,8 +70,9 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 │   │   ├── pins.h
 │   │   └── settings.h
 │   ├── control/
-│   │   ├── ARDCController.h
+│   │   ├── HysteresisController.h
 │   │   ├── IController.h
+│   │   ├── LADRCController.h
 │   │   └── PIDController.h
 │   ├── core/
 │   │   ├── AppState.h
@@ -90,7 +91,7 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 │   │   ├── Heater.h
 │   │   └── Humidifier.h
 │   ├── sensor/
-│   │   └── AM2120.h
+│   │   └── AHT30.h
 │   ├── types.h
 │   └── web/
 │       └── WebServer.h
@@ -102,5 +103,6 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 ## Estado actual
 - ConfigManager completo: saves atómicos, backup, validación, factory reset, versionado
 - WiFi AP + web server funcionales, con modo STA cuando se configura SSID
-- Logs por Serial funcionales (requiere `CORE_DEBUG_LEVEL` correcto)
-- Pendiente: probar sensor AM2120, display TFT y encoder en hardware real
+- Display TFT ST7789, encoder rotativo y sensor AHT30 probados en hardware real
+- Controladores: Hysteresis, PID y LADRC implementados y seleccionables
+- Pendiente: probar MQTT con broker real
