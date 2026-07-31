@@ -22,6 +22,9 @@ public:
     uint32_t incubationDays() const;
     void setIncubationDays(uint32_t days);
 
+    uint32_t incubationElapsedS() const;
+    void setIncubationElapsedS(uint32_t seconds);
+
     bool isDirty() const;
     bool saveIfDirty();
 
@@ -32,6 +35,7 @@ private:
 
     SystemConfig m_config;
     uint32_t m_incubationDays = 0;
+    uint32_t m_incubationElapsedS = 0;
     bool m_dirty = false;
 
     bool writeToFile(const char* path);

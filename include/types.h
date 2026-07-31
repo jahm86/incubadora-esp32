@@ -53,7 +53,7 @@ struct SystemConfig {
 
 enum class MenuPage : uint8_t {
     Main,
-    Config,
+    Menu,
     EditValue
 };
 

@@ -5,21 +5,9 @@
 
 class EggTray {
 public:
-    void begin() {
-        pinMode(PIN_EGG_TRAY, OUTPUT);
-        off();
-    }
-
-    void on() {
-        digitalWrite(PIN_EGG_TRAY, HIGH);
-        m_active = true;
-    }
-
-    void off() {
-        digitalWrite(PIN_EGG_TRAY, LOW);
-        m_active = false;
-    }
-
+    void begin();
+    void on();
+    void off();
     bool isActive() const { return m_active; }
 
 private:

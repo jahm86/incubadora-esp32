@@ -46,7 +46,7 @@ log_e("Fallo: %s", error.c_str());    // strings
 - **No** commitear si hay errores de compilación
 
 ## Convenciones de código
-- Headers en `include/`, organizados por módulo
+- Headers en `include/`, organizados por módulo; implementaciones en `src/*.cpp` (no header-only, salvo `AppState`/`IController` que son contenedores/interfaces)
 - Archivos web estáticos en `data/`
 - Sin comentarios en código a menos que sea necesario
 - Nombres de clases en PascalCase, métodos en camelCase
@@ -96,13 +96,42 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 │   └── web/
 │       └── WebServer.h
 └── src/
+    ├── AHT30.cpp
+    ├── Buzzer.cpp
     ├── ConfigManager.cpp
-    └── main.cpp
+    ├── DisplayManager.cpp
+    ├── EggTray.cpp
+    ├── Heater.cpp
+    ├── Humidifier.cpp
+    ├── HysteresisController.cpp
+    ├── LADRCController.cpp
+    ├── main.cpp
+    ├── MenuSystem.cpp
+    ├── MqttManager.cpp
+    ├── PIDController.cpp
+    ├── RotaryEncoder.cpp
+    ├── WebServer.cpp
+    └── WiFiManager.cpp
 ```
 
 ## Estado actual
 - ConfigManager completo: saves atómicos, backup, validación, factory reset, versionado
+- Persistencia de días de incubación: se guarda `incubation_elapsed_s` cada 10 min (sobrevive reinicios)
 - WiFi AP + web server funcionales, con modo STA cuando se configura SSID
+- Web server solo en modo AP; se habilita también en STA solo si se mantiene presionado el botón del encoder al arrancar
 - Display TFT ST7789, encoder rotativo y sensor AHT30 probados en hardware real
 - Controladores: Hysteresis, PID y LADRC implementados y seleccionables
 - Pendiente: probar MQTT con broker real
+
+## Arquitectura de tareas (FreeRTOS)
+- **loopTask** (core 1, Arduino `loop()`): sensor, control térmico, alarmas (solo evalúa y encola), volteo, días de incubación, MQTT, saves
+- **uiTask** (core 0): encoder, máquina de menú, render del display, dismiss/snooze de alarma (10 min), detección del botón al bootear
+- **buzzerTask** (core 0): reproduce melodías (estructuras `Tone`/`BufferTone`) por cola FreeRTOS, no bloquea el loop
+- **Watchdog**: `esp_task_wdt_init(10, true)`; cada task se suscribe (`esp_task_wdt_add(NULL)`) y alimenta (`esp_task_wdt_reset()`)
+- Estado compartido (`AppState`): el control lee sensor/config, la UI escribe config. Escrituras de 32 bits atómicas en ESP32 → races benignas aceptadas
+
+## Menú y edición
+- Menú jerárquico (Root → Control / Temperatura / Humedad / Volteo / Sistema) con scroll en pantalla
+- Edit de valores: girar = ajustar, presionar = confirmar/salir (`cancel()` desde EditValue)
+- La config se guarda **solo al salir del modo edición** y en eventos discretos (MQTT, web), no en cada tick del encoder
+- `m_setpoint` vive en `IController` (base); `compute(float input)` usa el setpoint almacenado

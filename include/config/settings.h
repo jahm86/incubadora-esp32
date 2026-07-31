@@ -35,10 +35,13 @@ constexpr float DEFAULT_B0 = 25.0f;
 constexpr float DEFAULT_WC = 15.0f;
 constexpr float DEFAULT_WO = 60.0f;
 
-constexpr uint32_t SENSOR_INTERVAL_MS      = 2000;
+constexpr uint32_t SENSOR_INTERVAL_MS       = 2000;
 constexpr uint32_t CONTROL_INTERVAL_MS      = 1000;
 constexpr uint32_t MQTT_PUBLISH_INTERVAL_MS = 5000;
 constexpr uint32_t DISPLAY_REFRESH_MS       = 500;
+
+constexpr uint32_t INCUBATION_SAVE_INTERVAL_MS = 10UL * 60UL * 1000UL;
+constexpr uint32_t ALARM_SNOOZE_MS             = 10UL * 60UL * 1000UL;
 
 constexpr const char* AP_SSID     = "Incubadora-AP";
 constexpr const char* AP_PASSWORD = "config1234";

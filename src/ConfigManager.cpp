@@ -75,6 +75,7 @@ bool ConfigManager::load() {
     m_config.wc             = doc["wc"] | Settings::DEFAULT_WC;
     m_config.wo             = doc["wo"] | Settings::DEFAULT_WO;
     m_incubationDays        = doc["incubation_days"] | 0;
+    m_incubationElapsedS    = doc["incubation_elapsed_s"] | 0;
 
     validateAndClamp();
     m_dirty = false;
@@ -134,6 +135,7 @@ void ConfigManager::resetToDefaults() {
     m_config.wc             = Settings::DEFAULT_WC;
     m_config.wo             = Settings::DEFAULT_WO;
     m_incubationDays        = 0;
+    m_incubationElapsedS    = 0;
     m_dirty                 = true;
     log_w("Config factory reset");
 }
@@ -153,6 +155,17 @@ uint32_t ConfigManager::incubationDays() const {
 void ConfigManager::setIncubationDays(uint32_t days) {
     if (m_incubationDays != days) {
         m_incubationDays = days;
+        m_dirty = true;
+    }
+}
+
+uint32_t ConfigManager::incubationElapsedS() const {
+    return m_incubationElapsedS;
+}
+
+void ConfigManager::setIncubationElapsedS(uint32_t seconds) {
+    if (m_incubationElapsedS != seconds) {
+        m_incubationElapsedS = seconds;
         m_dirty = true;
     }
 }
@@ -209,6 +222,7 @@ bool ConfigManager::writeToFile(const char* path) {
     doc["wc"]               = m_config.wc;
     doc["wo"]               = m_config.wo;
     doc["incubation_days"]  = m_incubationDays;
+    doc["incubation_elapsed_s"] = m_incubationElapsedS;
 
     size_t bytes = serializeJson(doc, file);
     file.close();

@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <math.h>
+#include <esp_task_wdt.h>
 #include "config/pins.h"
 #include "config/settings.h"
 #include "core/AppState.h"
@@ -37,15 +39,25 @@ Heater            heater;
 Humidifier        humidifier;
 EggTray           eggTray;
 
-unsigned long lastSensorRead     = 0;
-unsigned long lastControl        = 0;
-unsigned long lastMqttPublish    = 0;
-unsigned long lastDisplayRefresh = 0;
-unsigned long lastTurnCheck      = 0;
-unsigned long incubationStart    = 0;
+unsigned long lastSensorRead      = 0;
+unsigned long lastControl         = 0;
+unsigned long lastMqttPublish     = 0;
+unsigned long lastIncubationSave  = 0;
+unsigned long lastTurnCheck       = 0;
+unsigned long incubationStart     = 0;
 
-bool alarmActive = false;
-String alarmMessage;
+volatile bool alarmActive = false;
+volatile uint32_t alarmSnoozedUntil = 0;
+char alarmMessage[64] = {0};
+
+const Tone kAlarmMelody[] = {
+    {4, 10}, {2, 12}, {4, 10}, {2, 12}, {4, 10}, {2, 12}
+};
+const BufferTone kAlarmBuffer = {
+    const_cast<Tone*>(kAlarmMelody),
+    sizeof(kAlarmMelody) / sizeof(Tone),
+    true
+};
 
 void syncAndSaveConfig() {
     configManager.config() = appState.config();
@@ -93,9 +105,8 @@ void runControl() {
     if (!appState.sensor().valid) return;
 
     float temp = appState.sensor().temperature;
-    float setpoint = appState.config().setpoint;
 
-    float heaterPower = activeController->compute(temp, setpoint);
+    float heaterPower = activeController->compute(temp);
     heater.setPower(heaterPower);
     appState.outputs().heaterPower = heaterPower;
     appState.outputs().heaterActive = heaterPower > 0.01f;
@@ -111,36 +122,45 @@ void runControl() {
 }
 
 void checkAlarms() {
-    alarmActive = false;
-    alarmMessage = "";
+    bool cond = false;
+    char msg[64] = {0};
 
-    if (!appState.sensor().valid) return;
+    if (appState.sensor().valid) {
+        float temp = appState.sensor().temperature;
+        float hum  = appState.sensor().humidity;
 
-    float temp = appState.sensor().temperature;
-    float hum  = appState.sensor().humidity;
-
-    if (temp > appState.config().tempAlarmHigh) {
-        alarmActive = true;
-        alarmMessage = "Temp ALTA: " + String(temp) + "C";
-    } else if (temp < appState.config().tempAlarmLow) {
-        alarmActive = true;
-        alarmMessage = "Temp BAJA: " + String(temp) + "C";
-    }
-
-    if (hum > appState.config().humAlarmHigh) {
-        alarmActive = true;
-        alarmMessage += " Hum ALTA: " + String(hum) + "%";
-    } else if (hum < appState.config().humAlarmLow) {
-        alarmActive = true;
-        alarmMessage += " Hum BAJA: " + String(hum) + "%";
-    }
-
-    appState.outputs().buzzerActive = alarmActive;
-    if (alarmActive) {
-        buzzer.alarmPattern();
-        if (mqttManager.isConnected()) {
-            mqttManager.publish(MqttTopics::ALARM, alarmMessage.c_str());
+        if (temp > appState.config().tempAlarmHigh) {
+            cond = true;
+            snprintf(msg, sizeof(msg), "Temp ALTA: %.1f C", temp);
+        } else if (temp < appState.config().tempAlarmLow) {
+            cond = true;
+            snprintf(msg, sizeof(msg), "Temp BAJA: %.1f C", temp);
         }
+
+        if (hum > appState.config().humAlarmHigh) {
+            cond = true;
+            snprintf(msg + strlen(msg), sizeof(msg) - strlen(msg), " Hum ALTA: %.1f%%", hum);
+        } else if (hum < appState.config().humAlarmLow) {
+            cond = true;
+            snprintf(msg + strlen(msg), sizeof(msg) - strlen(msg), " Hum BAJA: %.1f%%", hum);
+        }
+    }
+
+    bool shouldAlarm = cond && (millis() >= alarmSnoozedUntil);
+
+    if (shouldAlarm && !alarmActive) {
+        alarmActive = true;
+        strncpy(alarmMessage, msg, sizeof(alarmMessage) - 1);
+        alarmMessage[sizeof(alarmMessage) - 1] = '\0';
+        appState.outputs().buzzerActive = true;
+        buzzer.play(kAlarmBuffer);
+        if (mqttManager.isConnected()) {
+            mqttManager.publish(MqttTopics::ALARM, alarmMessage);
+        }
+    } else if (!shouldAlarm && alarmActive) {
+        alarmActive = false;
+        appState.outputs().buzzerActive = false;
+        buzzer.stop();
     }
 }
 
@@ -176,84 +196,213 @@ void updateIncubationDays() {
     }
 }
 
-void onEncoderValueChange(int delta) {
-    if (menuSystem.currentPage() == MenuPage::Main) return;
+struct ConfigFieldDef {
+    const char* label;
+    const char* unit;
+    std::function<float()> get;
+    std::function<void(float)> set;
+    float step;
+    float min;
+    float max;
+    bool isInt;
+    bool isEnum;
+};
 
-    float* target = nullptr;
-    float step = 1.0f;
+static const ConfigFieldDef* fieldDefs() {
+    static ConfigFieldDef defs[static_cast<uint8_t>(MenuField::Count)];
+    static bool init = false;
+    if (init) {
+        return defs;
+    }
+    init = true;
 
-    uint8_t idx = menuSystem.selectedItem();
-    switch (idx) {
-        case 0:  target = &appState.config().tempOffset;     step = 0.1f; break;
-        case 1:  target = &appState.config().humOffset;      step = 0.1f; break;
-        case 2:  target = &appState.config().setpoint;       step = 0.1f; break;
-        case 3:  target = &appState.config().tempAlarmHigh;  step = 0.1f; break;
-        case 4:  target = &appState.config().tempAlarmLow;   step = 0.1f; break;
-        case 5:  target = &appState.config().humSetpointOn;  step = 0.5f; break;
-        case 6:  target = &appState.config().humSetpointOff; step = 0.5f; break;
-        case 7:  target = &appState.config().humAlarmHigh;   step = 0.5f; break;
-        case 8:  target = &appState.config().humAlarmLow;    step = 0.5f; break;
-        case 9:  // Intervalo volteo
-            {
-                int val = appState.config().turnInterval + delta;
-                val = constrain(val, 1, 1440);
-                appState.config().turnInterval = val;
-                syncAndSaveConfig();
-            }
-            break;
-        case 10: // Duracion volteo
-            {
-                int val = appState.config().turnDuration + delta;
-                val = constrain(val, 1, 60);
-                appState.config().turnDuration = val;
-                syncAndSaveConfig();
-            }
-            break;
-        case 11: // Tipo controlador
-            {
-                int val = appState.config().controllerType + (delta > 0 ? 1 : -1);
-                val = constrain(val, 0, 2);
-                appState.config().controllerType = val;
-                initController();
-                syncAndSaveConfig();
-            }
-            break;
-        case 12: target = &appState.config().kp; step = 1.0f; break;
-        case 13: target = &appState.config().ki; step = 0.1f; break;
-        case 14: target = &appState.config().kd; step = 1.0f; break;
-        case 15: target = &appState.config().hysteresis; step = 0.1f; break;
-        case 16: target = &appState.config().b0; step = 1.0f; break;
-        case 17: target = &appState.config().wc; step = 1.0f; break;
-        case 18: target = &appState.config().wo; step = 1.0f; break;
-        case 19: // Reset dias
-            configManager.setIncubationDays(0);
-            appState.setIncubationDays(0);
-            incubationStart = millis();
-            break;
+    auto* P = &appState.config();
+
+    defs[static_cast<uint8_t>(MenuField::TempOffset)] =
+        {"Offset Temp", "C", [P] { return P->tempOffset; }, [P](float v) { P->tempOffset = v; },
+         0.1f, -10.0f, 10.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::HumOffset)] =
+        {"Offset Hum", "%", [P] { return P->humOffset; }, [P](float v) { P->humOffset = v; },
+         0.1f, -20.0f, 20.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::Setpoint)] =
+        {"Setpoint", "C", [P] { return P->setpoint; }, [P](float v) { P->setpoint = v; },
+         0.1f, 20.0f, 60.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::TempAlarmHigh)] =
+        {"Alarma T Alta", "C", [P] { return P->tempAlarmHigh; }, [P](float v) { P->tempAlarmHigh = v; },
+         0.1f, 0.0f, 60.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::TempAlarmLow)] =
+        {"Alarma T Baja", "C", [P] { return P->tempAlarmLow; }, [P](float v) { P->tempAlarmLow = v; },
+         0.1f, 0.0f, 60.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::HumOn)] =
+        {"Hum On", "%", [P] { return P->humSetpointOn; }, [P](float v) { P->humSetpointOn = v; },
+         0.5f, 0.0f, 100.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::HumOff)] =
+        {"Hum Off", "%", [P] { return P->humSetpointOff; }, [P](float v) { P->humSetpointOff = v; },
+         0.5f, 0.0f, 100.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::HumAlarmHigh)] =
+        {"Alarma H Alta", "%", [P] { return P->humAlarmHigh; }, [P](float v) { P->humAlarmHigh = v; },
+         0.5f, 0.0f, 100.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::HumAlarmLow)] =
+        {"Alarma H Baja", "%", [P] { return P->humAlarmLow; }, [P](float v) { P->humAlarmLow = v; },
+         0.5f, 0.0f, 100.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::TurnInterval)] =
+        {"Intervalo Volteo", "min", [P] { return static_cast<float>(P->turnInterval); },
+         [P](float v) { P->turnInterval = static_cast<uint32_t>(v); },
+         1.0f, 1.0f, 1440.0f, true, false};
+    defs[static_cast<uint8_t>(MenuField::TurnDuration)] =
+        {"Duracion Volteo", "s", [P] { return static_cast<float>(P->turnDuration); },
+         [P](float v) { P->turnDuration = static_cast<uint32_t>(v); },
+         1.0f, 1.0f, 60.0f, true, false};
+    defs[static_cast<uint8_t>(MenuField::ControllerType)] =
+        {"Controlador", "", [P] { return static_cast<float>(P->controllerType); },
+         [P](float v) { P->controllerType = static_cast<uint8_t>(v); },
+         1.0f, 0.0f, 2.0f, true, true};
+    defs[static_cast<uint8_t>(MenuField::Kp)] =
+        {"Kp (PID)", "", [P] { return P->kp; }, [P](float v) { P->kp = v; },
+         1.0f, 0.0f, 1000.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::Ki)] =
+        {"Ki (PID)", "", [P] { return P->ki; }, [P](float v) { P->ki = v; },
+         0.1f, 0.0f, 100.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::Kd)] =
+        {"Kd (PID)", "", [P] { return P->kd; }, [P](float v) { P->kd = v; },
+         1.0f, 0.0f, 100.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::Hysteresis)] =
+        {"Histeresis", "C", [P] { return P->hysteresis; }, [P](float v) { P->hysteresis = v; },
+         0.1f, 0.1f, 5.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::B0Coeff)] =
+        {"b0 (LADRC)", "", [P] { return P->b0; }, [P](float v) { P->b0 = v; },
+         1.0f, 1.0f, 1000.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::Wc)] =
+        {"wc (LADRC)", "", [P] { return P->wc; }, [P](float v) { P->wc = v; },
+         1.0f, 0.1f, 500.0f, false, false};
+    defs[static_cast<uint8_t>(MenuField::Wo)] =
+        {"wo (LADRC)", "", [P] { return P->wo; }, [P](float v) { P->wo = v; },
+         1.0f, 0.1f, 500.0f, false, false};
+
+    return defs;
+}
+
+void onFieldValueChange(int delta) {
+    MenuField f = menuSystem.editField();
+    const ConfigFieldDef& def = fieldDefs()[static_cast<uint8_t>(f)];
+    float v = def.get();
+
+    if (def.isEnum) {
+        int iv = static_cast<int>(v) + (delta > 0 ? 1 : -1);
+        iv = constrain(iv, static_cast<int>(def.min), static_cast<int>(def.max));
+        def.set(static_cast<float>(iv));
+    } else {
+        v += delta * def.step;
+        v = constrain(v, def.min, def.max);
+        if (def.isInt) {
+            v = roundf(v);
+        }
+        def.set(v);
     }
 
-    if (target) {
-        *target += delta * step;
-        if (idx == 2) {
-            initController();
-        }
-        syncAndSaveConfig();
+    if (f == MenuField::Setpoint || f == MenuField::ControllerType) {
+        initController();
     }
 }
 
-void onEnterEdit(uint8_t itemIndex) {
-    (void)itemIndex;
-    encoder.setBoundaries(0, 100, false);
+void onEnterEdit(MenuField f) {
+    const ConfigFieldDef& def = fieldDefs()[static_cast<uint8_t>(f)];
+    if (def.isEnum) {
+        encoder.setBoundaries(static_cast<int>(def.min), static_cast<int>(def.max), false);
+    } else {
+        encoder.setBoundaries(0, 100, false);
+    }
     encoder.setValue(0);
 }
 
-void onExitEdit() {
+void onExitEdit(MenuField f) {
+    (void)f;
+    encoder.setBoundaries(0, 255, true);
+    encoder.setValue(0);
     syncAndSaveConfig();
+}
+
+void onMenuAction(uint8_t action) {
+    if (action == 1) {
+        configManager.setIncubationDays(0);
+        configManager.setIncubationElapsedS(0);
+        appState.setIncubationDays(0);
+        incubationStart = millis();
+        syncAndSaveConfig();
+        log_i("Incubation days reset");
+    }
+}
+
+void uiTask(void* param) {
+    (void)param;
+    esp_task_wdt_add(NULL);
+
+    uint32_t lastDisplay = 0;
+    int lastEncVal = encoder.getValue();
+
+    while (true) {
+        esp_task_wdt_reset();
+        encoder.loop();
+
+        if (encoder.wasClicked()) {
+            if (alarmActive) {
+                alarmSnoozedUntil = millis() + Settings::ALARM_SNOOZE_MS;
+                alarmActive = false;
+                appState.outputs().buzzerActive = false;
+                buzzer.stop();
+                log_i("Alarm snoozed 10 min");
+            } else if (menuSystem.isEditing()) {
+                menuSystem.cancel();
+            } else if (menuSystem.currentPage() == MenuPage::Main) {
+                menuSystem.openMenu();
+            } else {
+                menuSystem.confirm();
+            }
+        }
+
+        int encVal = encoder.getValue();
+        if (encVal != lastEncVal) {
+            int delta = encVal - lastEncVal;
+            lastEncVal = encVal;
+            menuSystem.navigate(delta);
+        }
+
+        uint32_t now = millis();
+        if (now - lastDisplay >= Settings::DISPLAY_REFRESH_MS) {
+            lastDisplay = now;
+
+            if (alarmActive) {
+                display.drawAlarm(alarmMessage);
+            } else if (menuSystem.isEditing()) {
+                const ConfigFieldDef& def = fieldDefs()[static_cast<uint8_t>(menuSystem.editField())];
+                char valBuf[24];
+                if (def.isEnum) {
+                    static const char* ctlNames[] = {"Hysteresis", "PID", "LADRC"};
+                    int idx = constrain(static_cast<int>(def.get()), 0, 2);
+                    snprintf(valBuf, sizeof(valBuf), "%s", ctlNames[idx]);
+                } else if (def.isInt) {
+                    snprintf(valBuf, sizeof(valBuf), "%.0f %s", def.get(), def.unit);
+                } else {
+                    snprintf(valBuf, sizeof(valBuf), "%.1f %s", def.get(), def.unit);
+                }
+                display.drawEditValue(def.label, valBuf);
+            } else if (menuSystem.currentPage() == MenuPage::Menu) {
+                display.drawMenu(menuSystem);
+            } else {
+                display.drawMainScreen(appState.sensor(), appState.outputs(),
+                                       appState.incubationDays(), appState.uptimeSeconds(),
+                                       appState.config().setpoint);
+            }
+        }
+
+        delay(10);
+    }
 }
 
 void setup() {
     Serial.begin(115200);
-    log_i("=== Incubadora ESP32 v1 ===");
+    log_i("=== Incubadora ESP32 v2 ===");
+
     if (!configManager.begin()) {
         log_e("SPIFFS mount failed, system halting");
         while (true) delay(100);
@@ -273,12 +422,32 @@ void setup() {
     buzzer.begin();
     log_i("Hardware init done");
 
-    menuSystem.setOnValueChange(onEncoderValueChange);
+    menuSystem.setOnValueChange(onFieldValueChange);
     menuSystem.setOnEnterEdit(onEnterEdit);
     menuSystem.setOnExitEdit(onExitEdit);
+    menuSystem.setOnAction(onMenuAction);
+    menuSystem.begin();
 
     initController();
-    incubationStart = millis();
+
+    incubationStart = millis() - configManager.incubationElapsedS() * 1000UL;
+
+    esp_task_wdt_init(10, true);
+
+    bool webRequested = false;
+    uint32_t bootEnd = millis() + 500;
+    while (millis() < bootEnd) {
+        encoder.loop();
+        if (encoder.isPressed()) {
+            webRequested = true;
+            break;
+        }
+        delay(10);
+    }
+    if (webRequested) {
+        log_i("Encoder button held at boot, web enabled");
+    }
+
     {
         const char* name = "none";
         switch (appState.controllerType()) {
@@ -289,12 +458,13 @@ void setup() {
         log_d("Controller: %s", name);
     }
 
+    bool staConnected = false;
     if (appState.config().ssid.length() > 0) {
         log_i("Connecting to STA %s", appState.config().ssid.c_str());
-        wifiManager.connectSTA(appState.config());
-        appState.setWifiConnected(wifiManager.isConnected());
+        staConnected = wifiManager.connectSTA(appState.config());
+        appState.setWifiConnected(staConnected);
 
-        if (wifiManager.isConnected()) {
+        if (staConnected) {
             log_i("WiFi connected, IP: %s", wifiManager.localIP().toString().c_str());
             mqttManager.begin(appState.config());
             mqttManager.setOnMessage([](const String& topic, const String& payload) {
@@ -309,6 +479,19 @@ void setup() {
                 } else if (topic == MqttTopics::HUM_OFF) {
                     appState.config().humSetpointOff = payload.toFloat();
                     syncAndSaveConfig();
+                } else if (topic == MqttTopics::TURN_INTERVAL) {
+                    appState.config().turnInterval = constrain(payload.toInt(), 1, 1440);
+                    syncAndSaveConfig();
+                } else if (topic == MqttTopics::TURN_DURATION) {
+                    appState.config().turnDuration = constrain(payload.toInt(), 1, 60);
+                    syncAndSaveConfig();
+                } else if (topic == MqttTopics::CONTROLLER_TYPE) {
+                    int t = payload.toInt();
+                    if (t >= 0 && t <= 2) {
+                        appState.config().controllerType = t;
+                        initController();
+                        syncAndSaveConfig();
+                    }
                 } else if (topic == MqttTopics::CMD_RESTART) {
                     log_i("Restart via MQTT");
                     ESP.restart();
@@ -319,38 +502,25 @@ void setup() {
         }
     }
 
-    if (!wifiManager.isConnected()) {
+    if (!staConnected) {
         log_i("Starting AP mode: %s", Settings::AP_SSID);
         wifiManager.beginAP();
         appState.setApMode(true);
+    }
+
+    if (!staConnected || webRequested) {
         webServer.begin(&configManager);
         log_i("Web server started");
     }
 
-    log_i("Setup complete — entering loop");
+    xTaskCreatePinnedToCore(uiTask, "uiTask", 8192, nullptr, 1, nullptr, 0);
+
+    log_i("Setup complete - entering loop");
 }
 
 void loop() {
     unsigned long now = millis();
     appState.tickUptime();
-
-    encoder.loop();
-
-    if (encoder.wasClicked()) {
-        if (menuSystem.currentPage() == MenuPage::EditValue) {
-            menuSystem.cancel();
-        } else {
-            menuSystem.confirm();
-        }
-    }
-
-    int encVal = encoder.getValue();
-    static int lastEncVal = 0;
-    if (encVal != lastEncVal) {
-        int delta = encVal - lastEncVal;
-        menuSystem.navigate(delta);
-        lastEncVal = encVal;
-    }
 
     if (now - lastSensorRead >= Settings::SENSOR_INTERVAL_MS) {
         lastSensorRead = now;
@@ -363,8 +533,15 @@ void loop() {
         checkAlarms();
         checkEggTurn();
         updateIncubationDays();
-        configManager.saveIfDirty();
     }
+
+    if (now - lastIncubationSave >= Settings::INCUBATION_SAVE_INTERVAL_MS) {
+        lastIncubationSave = now;
+        if (incubationStart > 0) {
+            configManager.setIncubationElapsedS((now - incubationStart) / 1000UL);
+        }
+    }
+    configManager.saveIfDirty();
 
     if (mqttManager.isConnected() && now - lastMqttPublish >= Settings::MQTT_PUBLISH_INTERVAL_MS) {
         lastMqttPublish = now;
@@ -373,51 +550,6 @@ void loop() {
         mqttManager.publish(MqttTopics::DAYS, static_cast<int32_t>(appState.incubationDays()));
     }
 
-    if (now - lastDisplayRefresh >= Settings::DISPLAY_REFRESH_MS) {
-        lastDisplayRefresh = now;
-
-        if (alarmActive) {
-            display.drawAlarm(alarmMessage.c_str());
-            if (encoder.wasClicked()) {
-                alarmActive = false;
-            }
-        } else if (menuSystem.currentPage() == MenuPage::EditValue) {
-            uint8_t idx = menuSystem.selectedItem();
-            float val = 0;
-            const char* unit = "";
-            const char* label = "";
-            switch (idx) {
-                case 0:  val = appState.config().tempOffset;     unit = "C"; label = "Temp Offset"; break;
-                case 1:  val = appState.config().humOffset;      unit = "%"; label = "Hum Offset"; break;
-                case 2:  val = appState.config().setpoint;       unit = "C"; label = "Setpoint"; break;
-                case 3:  val = appState.config().tempAlarmHigh;  unit = "C"; label = "Alarma T+"; break;
-                case 4:  val = appState.config().tempAlarmLow;   unit = "C"; label = "Alarma T-"; break;
-                case 5:  val = appState.config().humSetpointOn;  unit = "%"; label = "Hum On"; break;
-                case 6:  val = appState.config().humSetpointOff; unit = "%"; label = "Hum Off"; break;
-                case 7:  val = appState.config().humAlarmHigh;   unit = "%"; label = "Alarma H+"; break;
-                case 8:  val = appState.config().humAlarmLow;    unit = "%"; label = "Alarma H-"; break;
-                case 9:  val = appState.config().turnInterval;   unit = "m"; label = "Int. Volteo"; break;
-                case 10: val = appState.config().turnDuration;   unit = "s"; label = "Dur. Volteo"; break;
-                case 11: val = appState.config().controllerType; unit = "";  label = "Controlador"; break;
-                case 12: val = appState.config().kp;             unit = "";  label = "Kp (PID)"; break;
-                case 13: val = appState.config().ki;             unit = "";  label = "Ki (PID)"; break;
-                case 14: val = appState.config().kd;             unit = "";  label = "Kd (PID)"; break;
-                case 15: val = appState.config().hysteresis;     unit = "C"; label = "Histeresis (Hyst)"; break;
-                case 16: val = appState.config().b0;             unit = "";  label = "b0 (LADRC)"; break;
-                case 17: val = appState.config().wc;             unit = "";  label = "wc (LADRC)"; break;
-                case 18: val = appState.config().wo;             unit = "";  label = "wo (LADRC)"; break;
-                default: break;
-            }
-            display.drawEditValue(label, val, unit);
-        } else if (menuSystem.currentPage() == MenuPage::Config) {
-            display.drawMenu("Configuracion", MenuSystem::CONFIG_ITEMS,
-                             MenuSystem::CONFIG_ITEM_COUNT, menuSystem.selectedItem());
-        } else {
-            display.drawMainScreen(appState.sensor(), appState.outputs(),
-                                   appState.incubationDays(), appState.uptimeSeconds(),
-                                   appState.config().setpoint);
-        }
-    }
-
+    esp_task_wdt_reset();
     delay(10);
 }
