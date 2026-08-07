@@ -54,7 +54,9 @@ struct SystemConfig {
 enum class MenuPage : uint8_t {
     Main,
     Menu,
-    EditValue
+    EditValue,
+    Info,
+    Confirm
 };
 
 using AlarmCallback = std::function<void(const String& message)>;

@@ -29,6 +29,9 @@ public:
     bool isApMode() const { return m_apMode; }
     void setApMode(bool ap) { m_apMode = ap; }
 
+    const String& infoIp() const { return m_infoIp; }
+    void setInfoIp(const String& ip) { m_infoIp = ip; }
+
     uint32_t uptimeSeconds() const { return m_uptime; }
     void tickUptime() { m_uptime++; }
 
@@ -44,5 +47,6 @@ private:
     bool         m_wifiConnected  = false;
     bool         m_mqttConnected  = false;
     bool         m_apMode         = false;
+    String       m_infoIp;
     uint32_t     m_uptime         = 0;
 };

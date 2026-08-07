@@ -15,6 +15,7 @@ public:
 
     void stopAP();
     IPAddress localIP() const;
+    IPAddress softAPIP() const;
     void disconnect();
     String macAddress() const;
 

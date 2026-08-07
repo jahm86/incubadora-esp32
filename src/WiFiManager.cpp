@@ -55,6 +55,10 @@ IPAddress WiFiManager::localIP() const {
     return WiFi.localIP();
 }
 
+IPAddress WiFiManager::softAPIP() const {
+    return WiFi.softAPIP();
+}
+
 void WiFiManager::disconnect() {
     WiFi.disconnect(true);
 }

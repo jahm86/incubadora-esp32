@@ -22,6 +22,7 @@ async function loadConfig() {
         const data = await res.json();
 
         setValue('ssid', data.ssid);
+        setValue('password', data.password);
         setValue('static-ip', data.static_ip);
         setValue('static-gateway', data.static_gateway);
         setValue('static-netmask', data.static_netmask);

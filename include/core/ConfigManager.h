@@ -15,6 +15,7 @@ public:
     bool save();
 
     void resetToDefaults();
+    void factoryReset();
 
     SystemConfig& config();
     const SystemConfig& config() const;

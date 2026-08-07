@@ -80,6 +80,10 @@ bool ConfigManager::load() {
     validateAndClamp();
     m_dirty = false;
 
+    char debugBuf[768];
+    size_t debugLen = serializeJson(doc, debugBuf, sizeof(debugBuf));
+    log_d("Config JSON parsed (%u bytes): %s", debugLen, debugBuf);
+
     log_i("Loaded config v%u | WiFi=%s MQTT=%s:%u | Setpoint=%.1fC",
           fileVersion,
           m_config.ssid.c_str(),
@@ -138,6 +142,17 @@ void ConfigManager::resetToDefaults() {
     m_incubationElapsedS    = 0;
     m_dirty                 = true;
     log_w("Config factory reset");
+}
+
+void ConfigManager::factoryReset() {
+    SPIFFS.remove(Settings::CONFIG_FILE);
+    SPIFFS.remove(BACKUP_FILE);
+    SPIFFS.remove(TEMP_FILE);
+    m_config = SystemConfig();
+    m_incubationDays = 0;
+    m_incubationElapsedS = 0;
+    m_dirty = true;
+    log_w("Config files erased (factory reset)");
 }
 
 SystemConfig& ConfigManager::config() {

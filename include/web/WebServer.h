@@ -11,6 +11,9 @@ class WebServerManager {
 public:
     WebServerManager();
     void begin(ConfigManager* config);
+    void start(ConfigManager* config);
+    void stop();
+    bool isRunning() { return m_server.isRunning(); }
 
 private:
     PsychicHttpServer m_server;

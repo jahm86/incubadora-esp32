@@ -5,6 +5,13 @@
 WebServerManager::WebServerManager() : m_server(80) {}
 
 void WebServerManager::begin(ConfigManager* config) {
+    start(config);
+}
+
+void WebServerManager::start(ConfigManager* config) {
+    if (m_server.isRunning()) {
+        return;
+    }
     m_config = config;
 
     PsychicStaticFileHandler* fileHandler = m_server.serveStatic("/", SPIFFS, "/");
@@ -20,6 +27,7 @@ void WebServerManager::begin(ConfigManager* config) {
         JsonObject root = res.getRoot();
         SystemConfig& cfg = m_config->config();
         root["ssid"]             = cfg.ssid;
+        root["password"]         = cfg.password;
         root["static_ip"]        = cfg.staticIP;
         root["static_gateway"]   = cfg.staticGateway;
         root["static_netmask"]   = cfg.staticNetmask;
@@ -119,4 +127,11 @@ void WebServerManager::begin(ConfigManager* config) {
     });
 
     m_server.begin();
+}
+
+void WebServerManager::stop() {
+    if (m_server.isRunning()) {
+        m_server.stop();
+        log_i("Web server stopped");
+    }
 }

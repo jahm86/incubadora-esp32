@@ -129,6 +129,59 @@ void DisplayManager::drawEditValue(const char* label, const char* valueText) {
     m_tft.drawString("Girar: ajustar  Presionar: ok", 10, 180, 2);
 }
 
+void DisplayManager::drawInfo(const char* title, const char* line1, const char* line2) {
+    clear();
+
+    m_tft.setTextSize(1);
+    m_tft.setTextFont(2);
+    m_tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    m_tft.drawString(title, 10, 30, 2);
+
+    m_tft.setTextFont(4);
+    m_tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    m_tft.drawString(line1, 10, 80, 4);
+
+    m_tft.setTextFont(2);
+    m_tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    m_tft.drawString(line2, 10, 130, 2);
+
+    m_tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    m_tft.drawString("Presionar: volver", 10, 180, 2);
+}
+
+void DisplayManager::drawConfirm(const char* title, const char* line, bool choice) {
+    clear();
+
+    m_tft.setTextSize(1);
+    m_tft.setTextFont(2);
+    m_tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    m_tft.drawString(title, 10, 30, 2);
+
+    m_tft.setTextFont(4);
+    m_tft.setTextColor(TFT_RED, TFT_BLACK);
+    m_tft.drawString(line, 10, 70, 4);
+
+    int y = 170;
+    if (!choice) {
+        m_tft.fillRect(40, y - 2, 60, 20, TFT_BLUE);
+        m_tft.setTextColor(TFT_WHITE, TFT_BLUE);
+    } else {
+        m_tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    }
+    m_tft.drawString("NO", 45, y, 2);
+
+    if (choice) {
+        m_tft.fillRect(140, y - 2, 60, 20, TFT_BLUE);
+        m_tft.setTextColor(TFT_WHITE, TFT_BLUE);
+    } else {
+        m_tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    }
+    m_tft.drawString("SI", 145, y, 2);
+
+    m_tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    m_tft.drawString("Girar: cambiar  Presionar: confirmar", 10, 200, 2);
+}
+
 void DisplayManager::drawAlarm(const char* message) {
     clear();
 

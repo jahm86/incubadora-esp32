@@ -44,6 +44,10 @@ public:
     uint8_t scrollOffset() const { return m_scroll; }
     MenuField editField() const { return m_editField; }
 
+    uint8_t infoId() const { return m_info; }
+    bool confirmChoice() const { return m_confirmChoice; }
+    uint8_t pendingAction() const { return m_pendingAction; }
+
     const char* currentTitle() const;
     uint8_t currentItemCount() const;
     const char* itemLabel(uint8_t index) const;
@@ -56,6 +60,7 @@ public:
     void setOnEnterEdit(EnterEditCallback cb) { m_onEnterEdit = cb; }
     void setOnExitEdit(ExitEditCallback cb) { m_onExitEdit = cb; }
     void setOnAction(ActionCallback cb) { m_onAction = cb; }
+    void setDynamicLabel(uint8_t node, uint8_t index, const char* text);
 
     static constexpr uint8_t VISIBLE_ROWS = 9;
 
@@ -66,6 +71,15 @@ private:
     uint8_t m_scroll = 0;
     bool m_editing = false;
     MenuField m_editField = MenuField::Setpoint;
+
+    uint8_t m_info = 0;
+    bool m_confirmChoice = false;
+    uint8_t m_pendingAction = 0;
+
+    uint8_t m_dynNode = 0;
+    uint8_t m_dynIndex = 0;
+    bool m_hasDynLabel = false;
+    char m_dynText[20] = {0};
 
     ValueChangeCallback m_onValueChange;
     EnterEditCallback m_onEnterEdit;

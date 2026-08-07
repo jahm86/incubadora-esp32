@@ -15,6 +15,8 @@ public:
                         uint32_t days, uint32_t uptime, float setpoint);
     void drawMenu(const MenuSystem& menu);
     void drawEditValue(const char* label, const char* valueText);
+    void drawInfo(const char* title, const char* line1, const char* line2);
+    void drawConfirm(const char* title, const char* line, bool choice);
     void drawAlarm(const char* message);
 
     TFT_eSPI& tft() { return m_tft; }

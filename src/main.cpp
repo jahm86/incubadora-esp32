@@ -282,23 +282,35 @@ static const ConfigFieldDef* fieldDefs() {
     return defs;
 }
 
+constexpr uint8_t NODE_SYSTEM = 5;
+constexpr uint8_t WEB_ITEM_IDX = 0;
+
+bool g_webRunning = false;
+
+void formatFieldValue(const ConfigFieldDef& def, char* buf, size_t size) {
+    if (def.isEnum) {
+        static const char* ctlNames[] = {"Hysteresis", "PID", "LADRC"};
+        int idx = constrain(static_cast<int>(def.get()), 0, 2);
+        snprintf(buf, size, "%s", ctlNames[idx]);
+    } else if (def.isInt) {
+        snprintf(buf, size, "%.0f %s", def.get(), def.unit);
+    } else {
+        snprintf(buf, size, "%.1f %s", def.get(), def.unit);
+    }
+}
+
 void onFieldValueChange(int delta) {
+    (void)delta;
     MenuField f = menuSystem.editField();
     const ConfigFieldDef& def = fieldDefs()[static_cast<uint8_t>(f)];
-    float v = def.get();
 
-    if (def.isEnum) {
-        int iv = static_cast<int>(v) + (delta > 0 ? 1 : -1);
-        iv = constrain(iv, static_cast<int>(def.min), static_cast<int>(def.max));
-        def.set(static_cast<float>(iv));
-    } else {
-        v += delta * def.step;
-        v = constrain(v, def.min, def.max);
-        if (def.isInt) {
-            v = roundf(v);
-        }
-        def.set(v);
+    long pos = encoder.getValue();
+    float v = def.min + static_cast<float>(pos) * def.step;
+    if (def.isEnum || def.isInt) {
+        v = roundf(v);
     }
+    v = constrain(v, def.min, def.max);
+    def.set(v);
 
     if (f == MenuField::Setpoint || f == MenuField::ControllerType) {
         initController();
@@ -307,12 +319,10 @@ void onFieldValueChange(int delta) {
 
 void onEnterEdit(MenuField f) {
     const ConfigFieldDef& def = fieldDefs()[static_cast<uint8_t>(f)];
-    if (def.isEnum) {
-        encoder.setBoundaries(static_cast<int>(def.min), static_cast<int>(def.max), false);
-    } else {
-        encoder.setBoundaries(0, 100, false);
-    }
-    encoder.setValue(0);
+    long maxPos = lround((def.max - def.min) / def.step);
+    encoder.setBoundaries(0, maxPos, false);
+    long pos = lround((def.get() - def.min) / def.step);
+    encoder.setValue(pos);
 }
 
 void onExitEdit(MenuField f) {
@@ -320,6 +330,31 @@ void onExitEdit(MenuField f) {
     encoder.setBoundaries(0, 255, true);
     encoder.setValue(0);
     syncAndSaveConfig();
+}
+
+void updateWebLabel() {
+    menuSystem.setDynamicLabel(NODE_SYSTEM, WEB_ITEM_IDX,
+                               g_webRunning ? "Servidor Web: ON" : "Servidor Web: OFF");
+}
+
+void toggleWeb() {
+    if (g_webRunning) {
+        webServer.stop();
+        g_webRunning = false;
+        log_i("Web server OFF");
+    } else {
+        webServer.start(&configManager);
+        g_webRunning = true;
+        log_i("Web server ON");
+    }
+    updateWebLabel();
+}
+
+void factoryReset() {
+    configManager.factoryReset();
+    log_w("System factory reset requested, rebooting");
+    delay(100);
+    ESP.restart();
 }
 
 void onMenuAction(uint8_t action) {
@@ -330,6 +365,10 @@ void onMenuAction(uint8_t action) {
         incubationStart = millis();
         syncAndSaveConfig();
         log_i("Incubation days reset");
+    } else if (action == 2) {
+        toggleWeb();
+    } else if (action == 3) {
+        factoryReset();
     }
 }
 
@@ -339,10 +378,16 @@ void uiTask(void* param) {
 
     uint32_t lastDisplay = 0;
     int lastEncVal = encoder.getValue();
+    bool wasEditing = menuSystem.isEditing();
 
     while (true) {
         esp_task_wdt_reset();
         encoder.loop();
+
+        if (menuSystem.isEditing() != wasEditing) {
+            wasEditing = menuSystem.isEditing();
+            lastEncVal = encoder.getValue();
+        }
 
         if (encoder.wasClicked()) {
             if (alarmActive) {
@@ -355,6 +400,8 @@ void uiTask(void* param) {
                 menuSystem.cancel();
             } else if (menuSystem.currentPage() == MenuPage::Main) {
                 menuSystem.openMenu();
+            } else if (menuSystem.currentPage() == MenuPage::Info) {
+                menuSystem.cancel();
             } else {
                 menuSystem.confirm();
             }
@@ -376,16 +423,32 @@ void uiTask(void* param) {
             } else if (menuSystem.isEditing()) {
                 const ConfigFieldDef& def = fieldDefs()[static_cast<uint8_t>(menuSystem.editField())];
                 char valBuf[24];
-                if (def.isEnum) {
-                    static const char* ctlNames[] = {"Hysteresis", "PID", "LADRC"};
-                    int idx = constrain(static_cast<int>(def.get()), 0, 2);
-                    snprintf(valBuf, sizeof(valBuf), "%s", ctlNames[idx]);
-                } else if (def.isInt) {
-                    snprintf(valBuf, sizeof(valBuf), "%.0f %s", def.get(), def.unit);
-                } else {
-                    snprintf(valBuf, sizeof(valBuf), "%.1f %s", def.get(), def.unit);
-                }
+                formatFieldValue(def, valBuf, sizeof(valBuf));
                 display.drawEditValue(def.label, valBuf);
+            } else if (menuSystem.currentPage() == MenuPage::Info) {
+                char line1[16], line2[24];
+                if (appState.isApMode()) {
+                    snprintf(line1, sizeof(line1), "Modo: AP");
+                } else {
+                    snprintf(line1, sizeof(line1), "Modo: STA");
+                }
+                if (appState.infoIp().length() > 0) {
+                    snprintf(line2, sizeof(line2), "IP: %s", appState.infoIp().c_str());
+                } else {
+                    snprintf(line2, sizeof(line2), "IP: No obtenida");
+                }
+                display.drawInfo("Red", line1, line2);
+            } else if (menuSystem.currentPage() == MenuPage::Confirm) {
+                const char* title;
+                const char* line;
+                if (menuSystem.pendingAction() == 1) {
+                    title = "Reset Dias";
+                    line = "Reset diario?";
+                } else {
+                    title = "Restaurar Fab.";
+                    line = "Borrar config?";
+                }
+                display.drawConfirm(title, line, menuSystem.confirmChoice());
             } else if (menuSystem.currentPage() == MenuPage::Menu) {
                 display.drawMenu(menuSystem);
             } else {
@@ -434,20 +497,6 @@ void setup() {
 
     esp_task_wdt_init(10, true);
 
-    bool webRequested = false;
-    uint32_t bootEnd = millis() + 500;
-    while (millis() < bootEnd) {
-        encoder.loop();
-        if (encoder.isPressed()) {
-            webRequested = true;
-            break;
-        }
-        delay(10);
-    }
-    if (webRequested) {
-        log_i("Encoder button held at boot, web enabled");
-    }
-
     {
         const char* name = "none";
         switch (appState.controllerType()) {
@@ -466,6 +515,7 @@ void setup() {
 
         if (staConnected) {
             log_i("WiFi connected, IP: %s", wifiManager.localIP().toString().c_str());
+            appState.setInfoIp(wifiManager.localIP().toString());
             mqttManager.begin(appState.config());
             mqttManager.setOnMessage([](const String& topic, const String& payload) {
                 log_d("MQTT msg: %s = %s", topic.c_str(), payload.c_str());
@@ -506,12 +556,13 @@ void setup() {
         log_i("Starting AP mode: %s", Settings::AP_SSID);
         wifiManager.beginAP();
         appState.setApMode(true);
+        appState.setInfoIp(wifiManager.softAPIP().toString());
+        webServer.start(&configManager);
+        g_webRunning = true;
+        log_i("Web server started (AP portal)");
     }
 
-    if (!staConnected || webRequested) {
-        webServer.begin(&configManager);
-        log_i("Web server started");
-    }
+    updateWebLabel();
 
     xTaskCreatePinnedToCore(uiTask, "uiTask", 8192, nullptr, 1, nullptr, 0);
 
