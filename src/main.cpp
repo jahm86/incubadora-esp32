@@ -197,6 +197,7 @@ void updateIncubationDays() {
 }
 
 struct ConfigFieldDef {
+    const char* key;
     const char* label;
     const char* unit;
     std::function<float()> get;
@@ -219,64 +220,64 @@ static const ConfigFieldDef* fieldDefs() {
     auto* P = &appState.config();
 
     defs[static_cast<uint8_t>(MenuField::TempOffset)] =
-        {"Offset Temp", "C", [P] { return P->tempOffset; }, [P](float v) { P->tempOffset = v; },
+        {"temp_offset", "Offset Temp", "C", [P] { return P->tempOffset; }, [P](float v) { P->tempOffset = v; },
          0.1f, -10.0f, 10.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::HumOffset)] =
-        {"Offset Hum", "%", [P] { return P->humOffset; }, [P](float v) { P->humOffset = v; },
+        {"hum_offset", "Offset Hum", "%", [P] { return P->humOffset; }, [P](float v) { P->humOffset = v; },
          0.1f, -20.0f, 20.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::Setpoint)] =
-        {"Setpoint", "C", [P] { return P->setpoint; }, [P](float v) { P->setpoint = v; },
+        {"setpoint", "Setpoint", "C", [P] { return P->setpoint; }, [P](float v) { P->setpoint = v; },
          0.1f, 20.0f, 60.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::TempAlarmHigh)] =
-        {"Alarma T Alta", "C", [P] { return P->tempAlarmHigh; }, [P](float v) { P->tempAlarmHigh = v; },
+        {"temp_alarm_high", "Alarma T Alta", "C", [P] { return P->tempAlarmHigh; }, [P](float v) { P->tempAlarmHigh = v; },
          0.1f, 0.0f, 60.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::TempAlarmLow)] =
-        {"Alarma T Baja", "C", [P] { return P->tempAlarmLow; }, [P](float v) { P->tempAlarmLow = v; },
+        {"temp_alarm_low", "Alarma T Baja", "C", [P] { return P->tempAlarmLow; }, [P](float v) { P->tempAlarmLow = v; },
          0.1f, 0.0f, 60.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::HumOn)] =
-        {"Hum On", "%", [P] { return P->humSetpointOn; }, [P](float v) { P->humSetpointOn = v; },
+        {"hum_on", "Hum On", "%", [P] { return P->humSetpointOn; }, [P](float v) { P->humSetpointOn = v; },
          0.5f, 0.0f, 100.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::HumOff)] =
-        {"Hum Off", "%", [P] { return P->humSetpointOff; }, [P](float v) { P->humSetpointOff = v; },
+        {"hum_off", "Hum Off", "%", [P] { return P->humSetpointOff; }, [P](float v) { P->humSetpointOff = v; },
          0.5f, 0.0f, 100.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::HumAlarmHigh)] =
-        {"Alarma H Alta", "%", [P] { return P->humAlarmHigh; }, [P](float v) { P->humAlarmHigh = v; },
+        {"hum_alarm_high", "Alarma H Alta", "%", [P] { return P->humAlarmHigh; }, [P](float v) { P->humAlarmHigh = v; },
          0.5f, 0.0f, 100.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::HumAlarmLow)] =
-        {"Alarma H Baja", "%", [P] { return P->humAlarmLow; }, [P](float v) { P->humAlarmLow = v; },
+        {"hum_alarm_low", "Alarma H Baja", "%", [P] { return P->humAlarmLow; }, [P](float v) { P->humAlarmLow = v; },
          0.5f, 0.0f, 100.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::TurnInterval)] =
-        {"Intervalo Volteo", "min", [P] { return static_cast<float>(P->turnInterval); },
+        {"turn_interval", "Intervalo Volteo", "min", [P] { return static_cast<float>(P->turnInterval); },
          [P](float v) { P->turnInterval = static_cast<uint32_t>(v); },
          1.0f, 1.0f, 1440.0f, true, false};
     defs[static_cast<uint8_t>(MenuField::TurnDuration)] =
-        {"Duracion Volteo", "s", [P] { return static_cast<float>(P->turnDuration); },
+        {"turn_duration", "Duracion Volteo", "s", [P] { return static_cast<float>(P->turnDuration); },
          [P](float v) { P->turnDuration = static_cast<uint32_t>(v); },
          1.0f, 1.0f, 60.0f, true, false};
     defs[static_cast<uint8_t>(MenuField::ControllerType)] =
-        {"Controlador", "", [P] { return static_cast<float>(P->controllerType); },
+        {"controller_type", "Controlador", "", [P] { return static_cast<float>(P->controllerType); },
          [P](float v) { P->controllerType = static_cast<uint8_t>(v); },
          1.0f, 0.0f, 2.0f, true, true};
     defs[static_cast<uint8_t>(MenuField::Kp)] =
-        {"Kp (PID)", "", [P] { return P->kp; }, [P](float v) { P->kp = v; },
+        {"kp", "Kp (PID)", "", [P] { return P->kp; }, [P](float v) { P->kp = v; },
          1.0f, 0.0f, 1000.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::Ki)] =
-        {"Ki (PID)", "", [P] { return P->ki; }, [P](float v) { P->ki = v; },
+        {"ki", "Ki (PID)", "", [P] { return P->ki; }, [P](float v) { P->ki = v; },
          0.1f, 0.0f, 100.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::Kd)] =
-        {"Kd (PID)", "", [P] { return P->kd; }, [P](float v) { P->kd = v; },
+        {"kd", "Kd (PID)", "", [P] { return P->kd; }, [P](float v) { P->kd = v; },
          1.0f, 0.0f, 100.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::Hysteresis)] =
-        {"Histeresis", "C", [P] { return P->hysteresis; }, [P](float v) { P->hysteresis = v; },
+        {"hysteresis", "Histeresis", "C", [P] { return P->hysteresis; }, [P](float v) { P->hysteresis = v; },
          0.1f, 0.1f, 5.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::B0Coeff)] =
-        {"b0 (LADRC)", "", [P] { return P->b0; }, [P](float v) { P->b0 = v; },
+        {"b0", "b0 (LADRC)", "", [P] { return P->b0; }, [P](float v) { P->b0 = v; },
          1.0f, 1.0f, 1000.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::Wc)] =
-        {"wc (LADRC)", "", [P] { return P->wc; }, [P](float v) { P->wc = v; },
+        {"wc", "wc (LADRC)", "", [P] { return P->wc; }, [P](float v) { P->wc = v; },
          1.0f, 0.1f, 500.0f, false, false};
     defs[static_cast<uint8_t>(MenuField::Wo)] =
-        {"wo (LADRC)", "", [P] { return P->wo; }, [P](float v) { P->wo = v; },
+        {"wo", "wo (LADRC)", "", [P] { return P->wo; }, [P](float v) { P->wo = v; },
          1.0f, 0.1f, 500.0f, false, false};
 
     return defs;
@@ -370,6 +371,53 @@ void onMenuAction(uint8_t action) {
     } else if (action == 3) {
         factoryReset();
     }
+}
+
+const ConfigFieldDef* findFieldByKey(const String& key) {
+    const ConfigFieldDef* defs = fieldDefs();
+    for (uint8_t i = 0; i < static_cast<uint8_t>(MenuField::Count); i++) {
+        if (strcmp(defs[i].key, key.c_str()) == 0) {
+            return &defs[i];
+        }
+    }
+    return nullptr;
+}
+
+void applyMqttSet(const String& key, const String& payload) {
+    const ConfigFieldDef* def = findFieldByKey(key);
+    if (!def) {
+        log_d("MQTT: unknown config param %s", key.c_str());
+        return;
+    }
+    float v = payload.toFloat();
+    v = constrain(v, def->min, def->max);
+    if (def->isInt || def->isEnum) {
+        v = roundf(v);
+    }
+    def->set(v);
+    if (key == "setpoint" || key == "controller_type") {
+        initController();
+    }
+    log_i("MQTT set: %s = %g", key.c_str(), (double)v);
+    syncAndSaveConfig();
+}
+
+void handleMqttRequest(const String& payload) {
+    String name = payload;
+    name.trim();
+    const ConfigFieldDef* def = findFieldByKey(name);
+    char resp[48];
+    if (!def) {
+        snprintf(resp, sizeof(resp), "error(desconocido):%s", name.c_str());
+        mqttManager.publish(MqttTopics::CONFIG_RESPONSE, resp);
+        return;
+    }
+    if (def->isInt || def->isEnum) {
+        snprintf(resp, sizeof(resp), "%s:%d", name.c_str(), static_cast<int>(roundf(def->get())));
+    } else {
+        snprintf(resp, sizeof(resp), "%s:%.1f", name.c_str(), def->get());
+    }
+    mqttManager.publish(MqttTopics::CONFIG_RESPONSE, resp);
 }
 
 void uiTask(void* param) {
@@ -519,32 +567,16 @@ void setup() {
             mqttManager.begin(appState.config());
             mqttManager.setOnMessage([](const String& topic, const String& payload) {
                 log_d("MQTT msg: %s = %s", topic.c_str(), payload.c_str());
-                if (topic == MqttTopics::SETPOINT) {
-                    appState.config().setpoint = payload.toFloat();
-                    initController();
-                    syncAndSaveConfig();
-                } else if (topic == MqttTopics::HUM_ON) {
-                    appState.config().humSetpointOn = payload.toFloat();
-                    syncAndSaveConfig();
-                } else if (topic == MqttTopics::HUM_OFF) {
-                    appState.config().humSetpointOff = payload.toFloat();
-                    syncAndSaveConfig();
-                } else if (topic == MqttTopics::TURN_INTERVAL) {
-                    appState.config().turnInterval = constrain(payload.toInt(), 1, 1440);
-                    syncAndSaveConfig();
-                } else if (topic == MqttTopics::TURN_DURATION) {
-                    appState.config().turnDuration = constrain(payload.toInt(), 1, 60);
-                    syncAndSaveConfig();
-                } else if (topic == MqttTopics::CONTROLLER_TYPE) {
-                    int t = payload.toInt();
-                    if (t >= 0 && t <= 2) {
-                        appState.config().controllerType = t;
-                        initController();
-                        syncAndSaveConfig();
-                    }
+                if (topic == MqttTopics::CONFIG_REQUEST) {
+                    handleMqttRequest(payload);
                 } else if (topic == MqttTopics::CMD_RESTART) {
                     log_i("Restart via MQTT");
                     ESP.restart();
+                } else if (topic.startsWith(MqttTopics::CONFIG_PREFIX)) {
+                    String key = topic.substring(strlen(MqttTopics::CONFIG_PREFIX));
+                    if (key != "request" && key != "response") {
+                        applyMqttSet(key, payload);
+                    }
                 }
             });
         } else {

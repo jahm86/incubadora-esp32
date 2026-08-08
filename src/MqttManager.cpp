@@ -72,11 +72,7 @@ void MqttManager::disconnect() {
 }
 
 void MqttManager::subscribe() {
-    m_client.subscribe(MqttTopics::SETPOINT, 0);
-    m_client.subscribe(MqttTopics::HUM_ON, 0);
-    m_client.subscribe(MqttTopics::HUM_OFF, 0);
-    m_client.subscribe(MqttTopics::TURN_INTERVAL, 0);
-    m_client.subscribe(MqttTopics::TURN_DURATION, 0);
-    m_client.subscribe(MqttTopics::CONTROLLER_TYPE, 0);
+    String configFilter = String(MqttTopics::CONFIG_PREFIX) + "#";
+    m_client.subscribe(configFilter.c_str(), 0);
     m_client.subscribe(MqttTopics::CMD_RESTART, 0);
 }
