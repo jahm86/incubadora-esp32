@@ -17,6 +17,7 @@ enum class MenuField : uint8_t {
     HumAlarmLow,
     TurnInterval,
     TurnDuration,
+    TurnDisplayMode,
     ControllerType,
     Kp,
     Ki,

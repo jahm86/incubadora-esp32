@@ -4,6 +4,12 @@
 MqttManager::MqttManager() : m_client() {}
 
 void MqttManager::begin(const SystemConfig& config) {
+    if (config.mqttServer.length() == 0) {
+        m_state = MqttConnectionState::NoConfigurado;
+        return;
+    }
+    m_state = MqttConnectionState::Conectando;
+
     String uri;
     if (config.mqttUseTLS) {
         uri = "mqtts://";
@@ -30,11 +36,38 @@ void MqttManager::begin(const SystemConfig& config) {
 
     m_client.onConnect([this](bool sessionPresent) {
         m_connected = true;
+        m_state = MqttConnectionState::Conectado;
         subscribe();
     });
 
     m_client.onDisconnect([this](bool reason) {
         m_connected = false;
+        if (m_state == MqttConnectionState::Conectado) {
+            m_state = MqttConnectionState::Conectando;
+        }
+    });
+
+    m_client.onError([this](esp_mqtt_error_codes_t error) {
+        if (error.error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+            switch (error.connect_return_code) {
+                case MQTT_CONNECTION_REFUSE_BAD_USERNAME:
+                case MQTT_CONNECTION_REFUSE_NOT_AUTHORIZED:
+                    m_state = MqttConnectionState::AuthFallido;
+                    break;
+                default:
+                    m_state = MqttConnectionState::ServidorNoEncontrado;
+                    break;
+            }
+        } else if (error.error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+            if (error.esp_tls_cert_verify_flags != 0) {
+                m_state = MqttConnectionState::CertRechazado;
+            } else {
+                m_state = MqttConnectionState::TlsFallido;
+            }
+        } else {
+            m_state = MqttConnectionState::ServidorNoEncontrado;
+        }
+        log_w("MQTT error -> %s", stateText());
     });
 
     m_client.onMessage([this](char* topic, char* payload, int retain, int qos, bool dup) {
@@ -69,6 +102,19 @@ bool MqttManager::publish(const char* topic, int32_t value) {
 
 void MqttManager::disconnect() {
     m_client.disconnect();
+}
+
+const char* MqttManager::stateText() const {
+    switch (m_state) {
+        case MqttConnectionState::NoConfigurado:    return "No configurado";
+        case MqttConnectionState::Conectando:       return "Conectando...";
+        case MqttConnectionState::Conectado:        return "Conectado";
+        case MqttConnectionState::AuthFallido:      return "Error de autenticacion";
+        case MqttConnectionState::CertRechazado:    return "Error de certificado";
+        case MqttConnectionState::ServidorNoEncontrado: return "Servidor no encontrado";
+        case MqttConnectionState::TlsFallido:       return "Handshake TLS fallo";
+    }
+    return "Desconocido";
 }
 
 void MqttManager::subscribe() {

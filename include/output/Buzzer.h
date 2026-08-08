@@ -22,6 +22,8 @@ public:
     void play(BufferTone buffer);
     void play(const Tone* tones, uint8_t count, bool repeat);
     void stop();
+    void setEnabled(bool enabled);
+    bool isEnabled() const { return m_enabled; }
     void update();
 
 private:
@@ -48,6 +50,7 @@ private:
     uint8_t m_index = 0;
     uint32_t m_toneStart = 0;
     bool m_playing = false;
+    bool m_enabled = true;
 
     static void task(void* param);
 };

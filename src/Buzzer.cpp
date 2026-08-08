@@ -11,11 +11,17 @@ void Buzzer::begin() {
 }
 
 void Buzzer::play(BufferTone buffer) {
+    if (!m_enabled) {
+        return;
+    }
     Command cmd = {buffer.tone, buffer.t_size, buffer.repeat, false};
     xQueueSend(m_queue, &cmd, portMAX_DELAY);
 }
 
 void Buzzer::play(const Tone* tones, uint8_t count, bool repeat) {
+    if (!m_enabled) {
+        return;
+    }
     Command cmd = {tones, count, repeat, false};
     xQueueSend(m_queue, &cmd, portMAX_DELAY);
 }
@@ -23,6 +29,13 @@ void Buzzer::play(const Tone* tones, uint8_t count, bool repeat) {
 void Buzzer::stop() {
     Command cmd = {nullptr, 0, false, true};
     xQueueSend(m_queue, &cmd, portMAX_DELAY);
+}
+
+void Buzzer::setEnabled(bool enabled) {
+    m_enabled = enabled;
+    if (!m_enabled) {
+        stop();
+    }
 }
 
 void Buzzer::task(void* param) {

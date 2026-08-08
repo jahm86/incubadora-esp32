@@ -44,7 +44,11 @@ unsigned long lastControl         = 0;
 unsigned long lastMqttPublish     = 0;
 unsigned long lastIncubationSave  = 0;
 unsigned long lastTurnCheck       = 0;
+unsigned long lastTurnTime        = 0;
 unsigned long incubationStart     = 0;
+
+bool g_turning = false;
+unsigned long g_turnStart = 0;
 
 volatile bool alarmActive = false;
 volatile uint32_t alarmSnoozedUntil = 0;
@@ -164,25 +168,28 @@ void checkAlarms() {
     }
 }
 
-void checkEggTurn() {
-    static bool turning = false;
-    static unsigned long turnStart = 0;
+void startTurn() {
+    eggTray.on();
+    appState.outputs().eggTrayActive = true;
+    g_turning = true;
+    g_turnStart = millis();
+    lastTurnTime = g_turnStart;
+    lastTurnCheck = g_turnStart;
+    log_i("Egg turn started now");
+}
 
-    if (turning) {
-        if (millis() - turnStart > appState.config().turnDuration * 1000UL) {
+void checkEggTurn() {
+    if (g_turning) {
+        if (millis() - g_turnStart > appState.config().turnDuration * 1000UL) {
             eggTray.off();
             appState.outputs().eggTrayActive = false;
-            turning = false;
+            g_turning = false;
         }
         return;
     }
 
     if (millis() - lastTurnCheck > appState.config().turnInterval * 60UL * 1000UL) {
-        lastTurnCheck = millis();
-        eggTray.on();
-        appState.outputs().eggTrayActive = true;
-        turning = true;
-        turnStart = millis();
+        startTurn();
     }
 }
 
@@ -207,6 +214,7 @@ struct ConfigFieldDef {
     float max;
     bool isInt;
     bool isEnum;
+    const char* const* enumNames;
 };
 
 static const ConfigFieldDef* fieldDefs() {
@@ -216,6 +224,9 @@ static const ConfigFieldDef* fieldDefs() {
         return defs;
     }
     init = true;
+
+    static const char* ctlNames[]     = {"Histeresis", "PID", "LADRC"};
+    static const char* turnModeNames[] = {"Desde (X)", "Hasta (Y)"};
 
     auto* P = &appState.config();
 
@@ -253,11 +264,15 @@ static const ConfigFieldDef* fieldDefs() {
     defs[static_cast<uint8_t>(MenuField::TurnDuration)] =
         {"turn_duration", "Duracion Volteo", "s", [P] { return static_cast<float>(P->turnDuration); },
          [P](float v) { P->turnDuration = static_cast<uint32_t>(v); },
-         1.0f, 1.0f, 60.0f, true, false};
+         1.0f, 1.0f, 60.0f, true, false, nullptr};
+    defs[static_cast<uint8_t>(MenuField::TurnDisplayMode)] =
+        {"turn_display_mode", "Pantalla Volteo", "", [P] { return static_cast<float>(P->turnDisplayMode); },
+         [P](float v) { P->turnDisplayMode = static_cast<uint8_t>(v); },
+         1.0f, 0.0f, 1.0f, true, true, turnModeNames};
     defs[static_cast<uint8_t>(MenuField::ControllerType)] =
         {"controller_type", "Controlador", "", [P] { return static_cast<float>(P->controllerType); },
          [P](float v) { P->controllerType = static_cast<uint8_t>(v); },
-         1.0f, 0.0f, 2.0f, true, true};
+         1.0f, 0.0f, 2.0f, true, true, ctlNames};
     defs[static_cast<uint8_t>(MenuField::Kp)] =
         {"kp", "Kp (PID)", "", [P] { return P->kp; }, [P](float v) { P->kp = v; },
          1.0f, 0.0f, 1000.0f, false, false};
@@ -285,14 +300,16 @@ static const ConfigFieldDef* fieldDefs() {
 
 constexpr uint8_t NODE_SYSTEM = 5;
 constexpr uint8_t WEB_ITEM_IDX = 0;
+constexpr uint8_t BUZZER_ITEM_IDX = 3;
+constexpr uint8_t INFO_ID_NET  = 1;
+constexpr uint8_t INFO_ID_MQTT = 2;
 
 bool g_webRunning = false;
 
 void formatFieldValue(const ConfigFieldDef& def, char* buf, size_t size) {
     if (def.isEnum) {
-        static const char* ctlNames[] = {"Hysteresis", "PID", "LADRC"};
-        int idx = constrain(static_cast<int>(def.get()), 0, 2);
-        snprintf(buf, size, "%s", ctlNames[idx]);
+        int idx = constrain(static_cast<int>(def.get()), 0, static_cast<int>(def.max));
+        snprintf(buf, size, "%s", def.enumNames[idx]);
     } else if (def.isInt) {
         snprintf(buf, size, "%.0f %s", def.get(), def.unit);
     } else {
@@ -351,6 +368,20 @@ void toggleWeb() {
     updateWebLabel();
 }
 
+void updateBuzzerLabel() {
+    menuSystem.setDynamicLabel(NODE_SYSTEM, BUZZER_ITEM_IDX,
+                               appState.config().buzzerEnabled ? "Buzzer: ON" : "Buzzer: OFF");
+}
+
+void toggleBuzzer() {
+    bool now = !appState.config().buzzerEnabled;
+    appState.config().buzzerEnabled = now;
+    buzzer.setEnabled(now);
+    syncAndSaveConfig();
+    updateBuzzerLabel();
+    log_i("Buzzer %s", now ? "ON" : "OFF");
+}
+
 void factoryReset() {
     configManager.factoryReset();
     log_w("System factory reset requested, rebooting");
@@ -370,6 +401,14 @@ void onMenuAction(uint8_t action) {
         toggleWeb();
     } else if (action == 3) {
         factoryReset();
+    } else if (action == 4) {
+        startTurn();
+    } else if (action == 5) {
+        toggleBuzzer();
+    } else if (action == 6) {
+        log_i("Restart requested via menu");
+        delay(100);
+        ESP.restart();
     }
 }
 
@@ -474,24 +513,41 @@ void uiTask(void* param) {
                 formatFieldValue(def, valBuf, sizeof(valBuf));
                 display.drawEditValue(def.label, valBuf);
             } else if (menuSystem.currentPage() == MenuPage::Info) {
-                char line1[16], line2[24];
-                if (appState.isApMode()) {
-                    snprintf(line1, sizeof(line1), "Modo: AP");
+                if (menuSystem.infoId() == INFO_ID_MQTT) {
+                    char line1[24], line2[24];
+                    snprintf(line1, sizeof(line1), "%s", mqttManager.stateText());
+                    if (appState.config().mqttServer.length() > 0) {
+                        snprintf(line2, sizeof(line2), "Broker: %s", appState.config().mqttServer.c_str());
+                    } else {
+                        snprintf(line2, sizeof(line2), "Pendiente config");
+                    }
+                    display.drawInfo("MQTT", line1, line2);
                 } else {
-                    snprintf(line1, sizeof(line1), "Modo: STA");
+                    char line1[16], line2[24];
+                    if (appState.isApMode()) {
+                        snprintf(line1, sizeof(line1), "Modo: AP");
+                    } else {
+                        snprintf(line1, sizeof(line1), "Modo: STA");
+                    }
+                    if (appState.infoIp().length() > 0) {
+                        snprintf(line2, sizeof(line2), "IP: %s", appState.infoIp().c_str());
+                    } else {
+                        snprintf(line2, sizeof(line2), "IP: No obtenida");
+                    }
+                    display.drawInfo("Red", line1, line2);
                 }
-                if (appState.infoIp().length() > 0) {
-                    snprintf(line2, sizeof(line2), "IP: %s", appState.infoIp().c_str());
-                } else {
-                    snprintf(line2, sizeof(line2), "IP: No obtenida");
-                }
-                display.drawInfo("Red", line1, line2);
             } else if (menuSystem.currentPage() == MenuPage::Confirm) {
                 const char* title;
                 const char* line;
                 if (menuSystem.pendingAction() == 1) {
                     title = "Reset Dias";
                     line = "Reset diario?";
+                } else if (menuSystem.pendingAction() == 4) {
+                    title = "Volteo";
+                    line = "Voltear ahora?";
+                } else if (menuSystem.pendingAction() == 6) {
+                    title = "Reiniciar";
+                    line = "Reiniciar sistema?";
                 } else {
                     title = "Restaurar Fab.";
                     line = "Borrar config?";
@@ -500,9 +556,19 @@ void uiTask(void* param) {
             } else if (menuSystem.currentPage() == MenuPage::Menu) {
                 display.drawMenu(menuSystem);
             } else {
+                uint32_t nowMs = millis();
+                uint32_t sinceMin = (nowMs - lastTurnTime) / 60000UL;
+                bool until = appState.config().turnDisplayMode == 1;
+                uint32_t turnMin;
+                if (until) {
+                    uint32_t interval = appState.config().turnInterval;
+                    turnMin = sinceMin >= interval ? 0 : interval - sinceMin;
+                } else {
+                    turnMin = sinceMin;
+                }
                 display.drawMainScreen(appState.sensor(), appState.outputs(),
                                        appState.incubationDays(), appState.uptimeSeconds(),
-                                       appState.config().setpoint);
+                                       appState.config().setpoint, turnMin, until);
             }
         }
 
@@ -531,6 +597,7 @@ void setup() {
     humidifier.begin();
     eggTray.begin();
     buzzer.begin();
+    buzzer.setEnabled(appState.config().buzzerEnabled);
     log_i("Hardware init done");
 
     menuSystem.setOnValueChange(onFieldValueChange);
@@ -542,6 +609,7 @@ void setup() {
     initController();
 
     incubationStart = millis() - configManager.incubationElapsedS() * 1000UL;
+    lastTurnTime = millis();
 
     esp_task_wdt_init(10, true);
 
@@ -595,6 +663,7 @@ void setup() {
     }
 
     updateWebLabel();
+    updateBuzzerLabel();
 
     xTaskCreatePinnedToCore(uiTask, "uiTask", 8192, nullptr, 1, nullptr, 0);
 
@@ -603,7 +672,6 @@ void setup() {
 
 void loop() {
     unsigned long now = millis();
-    appState.tickUptime();
 
     if (now - lastSensorRead >= Settings::SENSOR_INTERVAL_MS) {
         lastSensorRead = now;

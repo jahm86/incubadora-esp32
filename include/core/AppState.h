@@ -32,8 +32,7 @@ public:
     const String& infoIp() const { return m_infoIp; }
     void setInfoIp(const String& ip) { m_infoIp = ip; }
 
-    uint32_t uptimeSeconds() const { return m_uptime; }
-    void tickUptime() { m_uptime++; }
+    uint32_t uptimeSeconds() const { return millis() / 1000; }
 
     Settings::ControllerType controllerType() const {
         return static_cast<Settings::ControllerType>(m_config.controllerType);
@@ -48,5 +47,4 @@ private:
     bool         m_mqttConnected  = false;
     bool         m_apMode         = false;
     String       m_infoIp;
-    uint32_t     m_uptime         = 0;
 };

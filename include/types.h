@@ -29,6 +29,8 @@ struct SystemConfig {
     float humAlarmLow        = 40.0f;
     uint32_t turnInterval    = 240;
     uint32_t turnDuration    = 5;
+    uint8_t turnDisplayMode  = 0;
+    bool buzzerEnabled       = true;
     bool useStaticIP         = false;
     String ssid;
     String password;

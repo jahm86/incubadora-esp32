@@ -12,7 +12,8 @@ public:
     void clear();
 
     void drawMainScreen(const SensorData& sensor, const OutputState& outputs,
-                        uint32_t days, uint32_t uptime, float setpoint);
+                        uint32_t days, uint32_t uptime, float setpoint,
+                        uint32_t turnMinutes, bool turnDisplayUntil);
     void drawMenu(const MenuSystem& menu);
     void drawEditValue(const char* label, const char* valueText);
     void drawInfo(const char* title, const char* line1, const char* line2);

@@ -66,6 +66,8 @@ bool ConfigManager::load() {
     m_config.humAlarmLow    = doc["hum_alarm_low"] | Settings::DEFAULT_HUM_ALARM_LOW;
     m_config.turnInterval   = doc["turn_interval"] | Settings::DEFAULT_TURN_INTERVAL;
     m_config.turnDuration   = doc["turn_duration"] | Settings::DEFAULT_TURN_DURATION;
+    m_config.turnDisplayMode = doc["turn_display_mode"] | 0;
+    m_config.buzzerEnabled  = doc["buzzer_enabled"] | true;
     m_config.controllerType = doc["controller_type"] | static_cast<uint8_t>(Settings::DEFAULT_CONTROLLER);
     m_config.kp             = doc["kp"] | Settings::DEFAULT_KP;
     m_config.ki             = doc["ki"] | Settings::DEFAULT_KI;
@@ -228,6 +230,8 @@ bool ConfigManager::writeToFile(const char* path) {
     doc["hum_alarm_low"]    = m_config.humAlarmLow;
     doc["turn_interval"]    = m_config.turnInterval;
     doc["turn_duration"]    = m_config.turnDuration;
+    doc["turn_display_mode"] = m_config.turnDisplayMode;
+    doc["buzzer_enabled"]   = m_config.buzzerEnabled;
     doc["controller_type"]  = m_config.controllerType;
     doc["kp"]               = m_config.kp;
     doc["ki"]               = m_config.ki;
@@ -281,6 +285,7 @@ void ConfigManager::validateAndClamp() {
     m_config.humAlarmLow    = constrain(m_config.humAlarmLow, 0.0f, 100.0f);
     m_config.turnInterval   = constrain(m_config.turnInterval, (uint32_t)1, (uint32_t)1440);
     m_config.turnDuration   = constrain(m_config.turnDuration, (uint32_t)1, (uint32_t)60);
+    m_config.turnDisplayMode = constrain(m_config.turnDisplayMode, (uint8_t)0, (uint8_t)1);
     m_config.kp             = constrain(m_config.kp, 0.0f, 1000.0f);
     m_config.ki             = constrain(m_config.ki, 0.0f, 100.0f);
     m_config.kd             = constrain(m_config.kd, 0.0f, 100.0f);

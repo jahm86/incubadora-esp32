@@ -14,19 +14,21 @@ void DisplayManager::clear() {
 }
 
 void DisplayManager::drawMainScreen(const SensorData& sensor, const OutputState& outputs,
-                                    uint32_t days, uint32_t uptime, float setpoint) {
+                                    uint32_t days, uint32_t uptime, float setpoint,
+                                    uint32_t turnMinutes, bool turnDisplayUntil) {
     clear();
 
     m_tft.setTextSize(1);
     m_tft.setTextFont(4);
     m_tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    m_tft.drawString("Incubadora", 60, 4, 4);
 
-    int y = 10;
-    m_tft.drawString("Incubadora", 10, y, 4);
-    y += 30;
+    m_tft.drawFastHLine(0, 32, 240, TFT_DARKGREY);
 
     m_tft.setTextFont(2);
     char buf[32];
+    int y = 42;
+    const int step = 26;
 
     if (sensor.valid) {
         snprintf(buf, sizeof(buf), "Temp: %.1f / %.1f C",
@@ -37,7 +39,7 @@ void DisplayManager::drawMainScreen(const SensorData& sensor, const OutputState&
         m_tft.setTextColor(TFT_RED, TFT_BLACK);
         m_tft.drawString("Sensor Error", 10, y, 2);
     }
-    y += 20;
+    y += step;
 
     if (sensor.valid) {
         snprintf(buf, sizeof(buf), "Hum:  %.1f %%", sensor.humidity);
@@ -46,34 +48,45 @@ void DisplayManager::drawMainScreen(const SensorData& sensor, const OutputState&
         snprintf(buf, sizeof(buf), "Hum:  -- %%");
         m_tft.setTextColor(TFT_RED, TFT_BLACK);
     }
-    m_tft.drawString(buf, 10, y, 2);
-    y += 20;
+    m_tft.drawString(buf, 1, y, 2);
+    y += step;
 
     snprintf(buf, sizeof(buf), "Heater: %s (%.0f%%)",
              outputs.heaterActive ? "ON" : "OFF",
              outputs.heaterPower * 100.0f);
     m_tft.setTextColor(outputs.heaterActive ? TFT_ORANGE : TFT_DARKGREY, TFT_BLACK);
-    m_tft.drawString(buf, 10, y, 2);
-    y += 20;
+    m_tft.drawString(buf, 1, y, 2);
+    y += step;
 
     snprintf(buf, sizeof(buf), "Humidifier: %s",
              outputs.humidifierActive ? "ON" : "OFF");
     m_tft.setTextColor(outputs.humidifierActive ? TFT_BLUE : TFT_DARKGREY, TFT_BLACK);
-    m_tft.drawString(buf, 10, y, 2);
-    y += 20;
+    m_tft.drawString(buf, 1, y, 2);
+    y += step;
 
     snprintf(buf, sizeof(buf), "Tray: %s  Days: %lu",
              outputs.eggTrayActive ? "ON" : "OFF",
              (unsigned long)days);
     m_tft.setTextColor(TFT_GREEN, TFT_BLACK);
-    m_tft.drawString(buf, 10, y, 2);
-    y += 20;
+    m_tft.drawString(buf, 1, y, 2);
+    y += step;
+
+    if (turnDisplayUntil) {
+        snprintf(buf, sizeof(buf), "Volteo: en %.2lu:%.2lu",
+                 (unsigned long)(turnMinutes / 60), (unsigned long)(turnMinutes % 60));
+    } else {
+        snprintf(buf, sizeof(buf), "Volteo: hace %.2lu:%.2lu",
+                 (unsigned long)(turnMinutes / 60), (unsigned long)(turnMinutes % 60));
+    }
+    m_tft.setTextColor(TFT_MAGENTA, TFT_BLACK);
+    m_tft.drawString(buf, 1, y, 2);
+    y += step;
 
     snprintf(buf, sizeof(buf), "Uptime: %luh %lum",
              (unsigned long)(uptime / 3600),
              (unsigned long)((uptime % 3600) / 60));
     m_tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    m_tft.drawString(buf, 10, y, 2);
+    m_tft.drawString(buf, 1, y, 2);
 }
 
 void DisplayManager::drawMenu(const MenuSystem& menu) {

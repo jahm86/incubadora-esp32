@@ -31,11 +31,15 @@ constexpr uint8_t NODE_HUM     = 3;
 constexpr uint8_t NODE_TURN    = 4;
 constexpr uint8_t NODE_SYSTEM  = 5;
 
-#define INFO_ID_NET 1
+#define INFO_ID_NET  1
+#define INFO_ID_MQTT 2
 
 constexpr int8_t ACT_RESET_DAYS    = 1;
 constexpr int8_t ACT_TOGGLE_WEB    = 2;
 constexpr int8_t ACT_FACTORY_RESET = 3;
+constexpr int8_t ACT_TURN_NOW      = 4;
+constexpr int8_t ACT_TOGGLE_BUZZER = 5;
+constexpr int8_t ACT_RESTART       = 6;
 
 #define FIELD(f) static_cast<int8_t>(f)
 
@@ -78,14 +82,19 @@ const MenuEntry kHumItems[] = {
 };
 
 const MenuEntry kTurnItems[] = {
-    {"Intervalo", Kind::Field, FIELD(MenuField::TurnInterval)},
-    {"Duracion",  Kind::Field, FIELD(MenuField::TurnDuration)},
-    {"Volver",    Kind::Back,  -1},
+    {"Intervalo",     Kind::Field,   FIELD(MenuField::TurnInterval)},
+    {"Duracion",      Kind::Field,   FIELD(MenuField::TurnDuration)},
+    {"Pantalla Volteo", Kind::Field, FIELD(MenuField::TurnDisplayMode)},
+    {"Voltear Ahora", Kind::Confirm, ACT_TURN_NOW},
+    {"Volver",        Kind::Back,    -1},
 };
 
 const MenuEntry kSystemItems[] = {
     {"Servidor Web",   Kind::Action,  ACT_TOGGLE_WEB},
     {"Ver IP / Modo",  Kind::Info,    INFO_ID_NET},
+    {"Estado MQTT",    Kind::Info,    INFO_ID_MQTT},
+    {"Buzzer",         Kind::Action,  ACT_TOGGLE_BUZZER},
+    {"Reiniciar",      Kind::Confirm, ACT_RESTART},
     {"Reset Dias",     Kind::Confirm, ACT_RESET_DAYS},
     {"Restaurar Fab.", Kind::Confirm, ACT_FACTORY_RESET},
     {"Volver",         Kind::Back,    -1},
