@@ -5,7 +5,6 @@ namespace {
 enum class Kind : uint8_t {
     Field,
     Submenu,
-    Action,
     Info,
     Back,
     Confirm
@@ -35,10 +34,8 @@ constexpr uint8_t NODE_SYSTEM  = 5;
 #define INFO_ID_MQTT 2
 
 constexpr int8_t ACT_RESET_DAYS    = 1;
-constexpr int8_t ACT_TOGGLE_WEB    = 2;
 constexpr int8_t ACT_FACTORY_RESET = 3;
 constexpr int8_t ACT_TURN_NOW      = 4;
-constexpr int8_t ACT_TOGGLE_BUZZER = 5;
 constexpr int8_t ACT_RESTART       = 6;
 
 #define FIELD(f) static_cast<int8_t>(f)
@@ -90,10 +87,10 @@ const MenuEntry kTurnItems[] = {
 };
 
 const MenuEntry kSystemItems[] = {
-    {"Servidor Web",   Kind::Action,  ACT_TOGGLE_WEB},
+    {"Servidor Web",   Kind::Field,   FIELD(MenuField::WebEnabled)},
     {"Ver IP / Modo",  Kind::Info,    INFO_ID_NET},
     {"Estado MQTT",    Kind::Info,    INFO_ID_MQTT},
-    {"Buzzer",         Kind::Action,  ACT_TOGGLE_BUZZER},
+    {"Buzzer",         Kind::Field,   FIELD(MenuField::BuzzerEnabled)},
     {"Reiniciar",      Kind::Confirm, ACT_RESTART},
     {"Reset Dias",     Kind::Confirm, ACT_RESET_DAYS},
     {"Restaurar Fab.", Kind::Confirm, ACT_FACTORY_RESET},
@@ -122,7 +119,8 @@ void MenuSystem::begin() {
     m_info = 0;
     m_confirmChoice = false;
     m_pendingAction = 0;
-    m_hasDynLabel = false;
+    m_prevSelected = 0;
+    m_prevScroll = 0;
 }
 
 void MenuSystem::openMenu() {
@@ -144,18 +142,7 @@ const char* MenuSystem::itemLabel(uint8_t index) const {
     if (index >= kNodes[m_node].count) {
         return "";
     }
-    if (m_hasDynLabel && m_dynNode == m_node && m_dynIndex == index) {
-        return m_dynText;
-    }
     return kNodes[m_node].items[index].label;
-}
-
-void MenuSystem::setDynamicLabel(uint8_t node, uint8_t index, const char* text) {
-    m_dynNode = node;
-    m_dynIndex = index;
-    m_hasDynLabel = true;
-    strncpy(m_dynText, text, sizeof(m_dynText) - 1);
-    m_dynText[sizeof(m_dynText) - 1] = '\0';
 }
 
 void MenuSystem::updateScroll() {
@@ -213,6 +200,8 @@ void MenuSystem::confirm() {
     const MenuEntry& e = kNodes[m_node].items[m_selected];
     switch (e.kind) {
         case Kind::Submenu:
+            m_prevSelected = m_selected;
+            m_prevScroll = m_scroll;
             m_node = e.target;
             m_selected = 0;
             m_scroll = 0;
@@ -223,11 +212,6 @@ void MenuSystem::confirm() {
             m_page = MenuPage::EditValue;
             if (m_onEnterEdit) {
                 m_onEnterEdit(m_editField);
-            }
-            break;
-        case Kind::Action:
-            if (m_onAction) {
-                m_onAction(e.target);
             }
             break;
         case Kind::Info:
@@ -265,8 +249,8 @@ void MenuSystem::cancel() {
     int8_t parent = kNodes[m_node].parent;
     if (parent >= 0) {
         m_node = parent;
-        m_selected = 0;
-        m_scroll = 0;
+        m_selected = m_prevSelected;
+        m_scroll = m_prevScroll;
     } else {
         m_page = MenuPage::Main;
     }

@@ -26,6 +26,8 @@ enum class MenuField : uint8_t {
     B0Coeff,
     Wc,
     Wo,
+    WebEnabled,
+    BuzzerEnabled,
     Count
 };
 
@@ -61,9 +63,8 @@ public:
     void setOnEnterEdit(EnterEditCallback cb) { m_onEnterEdit = cb; }
     void setOnExitEdit(ExitEditCallback cb) { m_onExitEdit = cb; }
     void setOnAction(ActionCallback cb) { m_onAction = cb; }
-    void setDynamicLabel(uint8_t node, uint8_t index, const char* text);
 
-    static constexpr uint8_t VISIBLE_ROWS = 9;
+    static constexpr uint8_t VISIBLE_ROWS = 8;
 
 private:
     MenuPage m_page = MenuPage::Main;
@@ -77,10 +78,8 @@ private:
     bool m_confirmChoice = false;
     uint8_t m_pendingAction = 0;
 
-    uint8_t m_dynNode = 0;
-    uint8_t m_dynIndex = 0;
-    bool m_hasDynLabel = false;
-    char m_dynText[20] = {0};
+    uint8_t m_prevSelected = 0;
+    uint8_t m_prevScroll = 0;
 
     ValueChangeCallback m_onValueChange;
     EnterEditCallback m_onEnterEdit;

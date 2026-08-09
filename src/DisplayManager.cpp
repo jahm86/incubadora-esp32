@@ -21,7 +21,7 @@ void DisplayManager::drawMainScreen(const SensorData& sensor, const OutputState&
     m_tft.setTextSize(1);
     m_tft.setTextFont(4);
     m_tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    m_tft.drawString("Incubadora", 60, 4, 4);
+    m_tft.drawString("Incubadora", 60, 4);
 
     m_tft.drawFastHLine(0, 32, 240, TFT_DARKGREY);
 
@@ -31,44 +31,44 @@ void DisplayManager::drawMainScreen(const SensorData& sensor, const OutputState&
     const int step = 26;
 
     if (sensor.valid) {
-        snprintf(buf, sizeof(buf), "Temp: %.1f / %.1f C",
+        snprintf(buf, sizeof(buf), "Temperatura: %.1f / %.1f C",
                  sensor.temperature, setpoint);
         m_tft.setTextColor(TFT_CYAN, TFT_BLACK);
-        m_tft.drawString(buf, 10, y, 2);
+        m_tft.drawString(buf, 30, y);
     } else {
         m_tft.setTextColor(TFT_RED, TFT_BLACK);
-        m_tft.drawString("Sensor Error", 10, y, 2);
+        m_tft.drawString("Error en Sensor", 30, y);
     }
     y += step;
 
     if (sensor.valid) {
-        snprintf(buf, sizeof(buf), "Hum:  %.1f %%", sensor.humidity);
+        snprintf(buf, sizeof(buf), "Humedad:  %.1f %%", sensor.humidity);
         m_tft.setTextColor(TFT_YELLOW, TFT_BLACK);
     } else {
-        snprintf(buf, sizeof(buf), "Hum:  -- %%");
+        snprintf(buf, sizeof(buf), "Humedad:  -- %%");
         m_tft.setTextColor(TFT_RED, TFT_BLACK);
     }
-    m_tft.drawString(buf, 1, y, 2);
+    m_tft.drawString(buf, 30, y);
     y += step;
 
-    snprintf(buf, sizeof(buf), "Heater: %s (%.0f%%)",
+    snprintf(buf, sizeof(buf), "Calefactor: %s (%.0f%%)",
              outputs.heaterActive ? "ON" : "OFF",
              outputs.heaterPower * 100.0f);
     m_tft.setTextColor(outputs.heaterActive ? TFT_ORANGE : TFT_DARKGREY, TFT_BLACK);
-    m_tft.drawString(buf, 1, y, 2);
+    m_tft.drawString(buf, 30, y);
     y += step;
 
-    snprintf(buf, sizeof(buf), "Humidifier: %s",
+    snprintf(buf, sizeof(buf), "Humidificador: %s",
              outputs.humidifierActive ? "ON" : "OFF");
     m_tft.setTextColor(outputs.humidifierActive ? TFT_BLUE : TFT_DARKGREY, TFT_BLACK);
-    m_tft.drawString(buf, 1, y, 2);
+    m_tft.drawString(buf, 30, y);
     y += step;
 
-    snprintf(buf, sizeof(buf), "Tray: %s  Days: %lu",
+    snprintf(buf, sizeof(buf), "Bandeja: %s  Dias: %lu",
              outputs.eggTrayActive ? "ON" : "OFF",
              (unsigned long)days);
     m_tft.setTextColor(TFT_GREEN, TFT_BLACK);
-    m_tft.drawString(buf, 1, y, 2);
+    m_tft.drawString(buf, 30, y);
     y += step;
 
     if (turnDisplayUntil) {
@@ -79,14 +79,14 @@ void DisplayManager::drawMainScreen(const SensorData& sensor, const OutputState&
                  (unsigned long)(turnMinutes / 60), (unsigned long)(turnMinutes % 60));
     }
     m_tft.setTextColor(TFT_MAGENTA, TFT_BLACK);
-    m_tft.drawString(buf, 1, y, 2);
+    m_tft.drawString(buf, 30, y);
     y += step;
 
-    snprintf(buf, sizeof(buf), "Uptime: %luh %lum",
+    snprintf(buf, sizeof(buf), "Tiempo activo: %luh %lum",
              (unsigned long)(uptime / 3600),
              (unsigned long)((uptime % 3600) / 60));
     m_tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    m_tft.drawString(buf, 1, y, 2);
+    m_tft.drawString(buf, 30, y);
 }
 
 void DisplayManager::drawMenu(const MenuSystem& menu) {
@@ -121,7 +121,7 @@ void DisplayManager::drawMenu(const MenuSystem& menu) {
 
     if (count > MenuSystem::VISIBLE_ROWS) {
         m_tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        m_tft.drawString("v scroll", 180, 265, 2);
+        m_tft.drawString("v scroll", 200, 8, 2);
     }
 }
 

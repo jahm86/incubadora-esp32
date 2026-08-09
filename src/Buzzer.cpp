@@ -82,7 +82,7 @@ uint32_t Buzzer::toneDurationMs(const Tone& tone) {
     if (tone.time == 255) {
         return FOREVER_MS;
     }
-    return (static_cast<uint32_t>(tone.time) + 1) * 20;
+    return (static_cast<uint32_t>(tone.time) + 1) * BASE_TIME_MS;
 }
 
 void Buzzer::setFrequency(uint16_t freqHz) {
@@ -105,7 +105,7 @@ void Buzzer::startBuffer(const Command& cmd) {
     m_repeat = cmd.repeat;
     m_index = 0;
     m_toneStart = millis();
-    setFrequency(static_cast<uint16_t>(m_tones[0].frequency) * 60);
+    setFrequency(static_cast<uint16_t>(m_tones[0].frequency) * BASE_FREQ_HZ);
     m_playing = true;
 }
 
@@ -121,7 +121,7 @@ void Buzzer::nextTone() {
         }
     }
     m_toneStart = millis();
-    setFrequency(static_cast<uint16_t>(m_tones[m_index].frequency) * 75);
+    setFrequency(static_cast<uint16_t>(m_tones[m_index].frequency) * BASE_FREQ_HZ);
 }
 
 void Buzzer::silence() {

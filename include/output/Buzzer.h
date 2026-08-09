@@ -6,8 +6,8 @@
 #include "config/pins.h"
 
 struct Tone {
-    uint8_t time;      // time=0 is 20ms, time=1 is 40ms, ..., time=254 is 5100ms, time=255 is forever
-    uint8_t frequency; // frequency=0 is 0Hz (Buzzer off), frequency=1 is 60Hz, ..., frequency=255 is 15300Hz
+    uint8_t time;      // time=0 is [BASE_TIME_MS]ms, time=1 is 2*[BASE_TIME_MS]ms, ..., time=254 is 255*[BASE_TIME_MS]ms, time=255 is forever
+    uint8_t frequency; // frequency=0 is 0Hz (Buzzer off), frequency=1 is [BASE_FREQ_HZ]Hz, ..., frequency=255 is 255*[BASE_FREQ_HZ]Hz
 };
 
 struct BufferTone {
@@ -37,6 +37,8 @@ private:
 
     static constexpr uint8_t CHANNEL = 1;
     static constexpr uint32_t FOREVER_MS = 0xFFFFFFFF;
+    static constexpr uint16_t BASE_TIME_MS = 20;
+    static constexpr uint16_t BASE_FREQ_HZ = 50;
 
     static uint32_t toneDurationMs(const Tone& tone);
     void setFrequency(uint16_t freqHz);
