@@ -121,4 +121,7 @@ void MqttManager::subscribe() {
     String configFilter = String(MqttTopics::CONFIG_PREFIX) + "#";
     m_client.subscribe(configFilter.c_str(), 0);
     m_client.subscribe(MqttTopics::CMD_RESTART, 0);
+#if TONE_TEST_ON
+    m_client.subscribe(MqttTopics::TONE_TEST, 0);
+#endif
 }

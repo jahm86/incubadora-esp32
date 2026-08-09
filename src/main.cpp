@@ -53,15 +53,33 @@ unsigned long g_turnStart = 0;
 volatile bool alarmActive = false;
 volatile uint32_t alarmSnoozedUntil = 0;
 char alarmMessage[64] = {0};
+uint8_t alarmMask = 0;
+const BufferTone* alarmPlayingBuf = nullptr;
 
-const Tone kAlarmMelody[] = {
-    {4, 10}, {2, 12}, {4, 10}, {2, 12}, {4, 10}, {2, 12}
-};
-const BufferTone kAlarmBuffer = {
-    const_cast<Tone*>(kAlarmMelody),
-    sizeof(kAlarmMelody) / sizeof(Tone),
-    true
-};
+const Tone kUiClick[] = {{0, 60}};
+const Tone kUiTick[]  = {{0, 20}};
+
+const Tone kAlarmTempHigh[] = {{1, 16}, {1, 0}};
+const Tone kAlarmTempLow[]  = {{3, 10}, {2, 0}};
+const Tone kAlarmHumHigh[]  = {{2, 12}, {2, 0}};
+const Tone kAlarmHumLow[]   = {{4, 6}, {2, 0}};
+
+const BufferTone kAlarmTempHighBuf = {const_cast<Tone*>(kAlarmTempHigh), sizeof(kAlarmTempHigh) / sizeof(Tone), true};
+const BufferTone kAlarmTempLowBuf  = {const_cast<Tone*>(kAlarmTempLow),  sizeof(kAlarmTempLow)  / sizeof(Tone), true};
+const BufferTone kAlarmHumHighBuf  = {const_cast<Tone*>(kAlarmHumHigh),  sizeof(kAlarmHumHigh)  / sizeof(Tone), true};
+const BufferTone kAlarmHumLowBuf   = {const_cast<Tone*>(kAlarmHumLow),   sizeof(kAlarmHumLow)   / sizeof(Tone), true};
+
+#define ALARM_MASK_TEMP_LOW  (1 << 0)
+#define ALARM_MASK_TEMP_HIGH (1 << 1)
+#define ALARM_MASK_HUM_LOW   (1 << 2)
+#define ALARM_MASK_HUM_HIGH  (1 << 3)
+
+const BufferTone* alarmBufferForMask(uint8_t mask) {
+    if (mask & ALARM_MASK_TEMP_HIGH) return &kAlarmTempHighBuf;
+    if (mask & ALARM_MASK_TEMP_LOW)  return &kAlarmTempLowBuf;
+    if (mask & ALARM_MASK_HUM_HIGH)  return &kAlarmHumHighBuf;
+    return &kAlarmHumLowBuf;
+}
 
 void syncAndSaveConfig() {
     configManager.config() = appState.config();
@@ -126,7 +144,7 @@ void runControl() {
 }
 
 void checkAlarms() {
-    bool cond = false;
+    uint8_t mask = 0;
     char msg[64] = {0};
 
     if (appState.sensor().valid) {
@@ -134,35 +152,50 @@ void checkAlarms() {
         float hum  = appState.sensor().humidity;
 
         if (temp > appState.config().tempAlarmHigh) {
-            cond = true;
+            mask |= ALARM_MASK_TEMP_HIGH;
             snprintf(msg, sizeof(msg), "Temp ALTA: %.1f C", temp);
         } else if (temp < appState.config().tempAlarmLow) {
-            cond = true;
+            mask |= ALARM_MASK_TEMP_LOW;
             snprintf(msg, sizeof(msg), "Temp BAJA: %.1f C", temp);
         }
 
         if (hum > appState.config().humAlarmHigh) {
-            cond = true;
+            mask |= ALARM_MASK_HUM_HIGH;
             snprintf(msg + strlen(msg), sizeof(msg) - strlen(msg), " Hum ALTA: %.1f%%", hum);
         } else if (hum < appState.config().humAlarmLow) {
-            cond = true;
+            mask |= ALARM_MASK_HUM_LOW;
             snprintf(msg + strlen(msg), sizeof(msg) - strlen(msg), " Hum BAJA: %.1f%%", hum);
         }
     }
 
-    bool shouldAlarm = cond && (millis() >= alarmSnoozedUntil);
+    bool shouldAlarm = (mask != 0) && (millis() >= alarmSnoozedUntil);
 
     if (shouldAlarm && !alarmActive) {
         alarmActive = true;
+        alarmMask = mask;
         strncpy(alarmMessage, msg, sizeof(alarmMessage) - 1);
         alarmMessage[sizeof(alarmMessage) - 1] = '\0';
         appState.outputs().buzzerActive = true;
-        buzzer.play(kAlarmBuffer);
+        alarmPlayingBuf = alarmBufferForMask(mask);
+        buzzer.play(*alarmPlayingBuf);
         if (mqttManager.isConnected()) {
             mqttManager.publish(MqttTopics::ALARM, alarmMessage);
         }
+    } else if (shouldAlarm && alarmActive) {
+        const BufferTone* buf = alarmBufferForMask(mask);
+        if (buf != alarmPlayingBuf) {
+            alarmPlayingBuf = buf;
+            buzzer.play(*buf);
+        }
+        if (mask != alarmMask) {
+            alarmMask = mask;
+            strncpy(alarmMessage, msg, sizeof(alarmMessage) - 1);
+            alarmMessage[sizeof(alarmMessage) - 1] = '\0';
+        }
     } else if (!shouldAlarm && alarmActive) {
         alarmActive = false;
+        alarmMask = 0;
+        alarmPlayingBuf = nullptr;
         appState.outputs().buzzerActive = false;
         buzzer.stop();
     }
@@ -459,6 +492,87 @@ void handleMqttRequest(const String& payload) {
     mqttManager.publish(MqttTopics::CONFIG_RESPONSE, resp);
 }
 
+#if TONE_TEST_ON
+static Tone bf_tone[64];
+static uint8_t len_tone = 0;
+static bool repeat_tone = false;
+
+static int parseToneNum(const char* s, size_t n) {
+    if (n == 0 || n > 3) return -1;
+    int v = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (s[i] < '0' || s[i] > '9') return -1;
+        v = v * 10 + (s[i] - '0');
+    }
+    return (v <= 255) ? v : -1;
+}
+
+void handleTestTone(const String& payload) {
+    const char* p = payload.c_str();
+    const size_t len = payload.length();
+
+    if (len < 5 || p[0] != '(') {
+        log_e("Tone test: formato invalido, se esperaba '(' en la pos 0");
+        return;
+    }
+    const char* close = strchr(p, ')');
+    if (!close) {
+        log_e("Tone test: falta el ')' en el payload");
+        return;
+    }
+
+    uint8_t count = 0;
+    bool ok = true;
+    const char* cur = p + 1;
+
+    while (cur < close) {
+        const size_t pos = static_cast<size_t>(cur - p);
+        const char* comma = strchr(cur, ',');
+        if (!comma || comma >= close) {
+            log_e("Tone test: pos %u: falta la ',' entre tiempo y frecuencia", (unsigned)pos);
+            ok = false;
+            break;
+        }
+        const int time = parseToneNum(cur, static_cast<size_t>(comma - cur));
+        if (time < 0) {
+            log_e("Tone test: pos %u: tiempo invalido (0-255)", (unsigned)pos);
+            ok = false;
+            break;
+        }
+        const char* semi = strchr(comma + 1, ';');
+        const char* end = (semi && semi < close) ? semi : close;
+        const int freq = parseToneNum(comma + 1, static_cast<size_t>(end - comma - 1));
+        if (freq < 0) {
+            log_e("Tone test: pos %u: frecuencia invalida (0-255)", (unsigned)pos);
+            ok = false;
+            break;
+        }
+        if (count >= 64) {
+            log_e("Tone test: pos %u: maximo 64 tonos", (unsigned)pos);
+            ok = false;
+            break;
+        }
+        bf_tone[count].time = static_cast<uint8_t>(time);
+        bf_tone[count].frequency = static_cast<uint8_t>(freq);
+        count++;
+        cur = end + 1;
+    }
+
+    if (!ok) {
+        return;
+    }
+    if (count == 0) {
+        log_e("Tone test: sin tonos en el payload");
+        return;
+    }
+
+    len_tone = count;
+    repeat_tone = (close[1] == 't');
+    buzzer.playNonBlocking(bf_tone, len_tone, repeat_tone);
+    log_i("Tone test: %u tonos, repeat=%s", len_tone, repeat_tone ? "t" : "f");
+}
+#endif
+
 void uiTask(void* param) {
     (void)param;
     esp_task_wdt_add(NULL);
@@ -476,7 +590,12 @@ void uiTask(void* param) {
             lastEncVal = encoder.getValue();
         }
 
-        if (encoder.wasClicked()) {
+        int btn = encoder.pollButton();
+        if (btn == 1) {
+            if (!alarmActive) {
+                buzzer.playNonBlocking(kUiClick, sizeof(kUiClick) / sizeof(Tone), false);
+            }
+        } else if (btn == -1) {
             if (alarmActive) {
                 alarmSnoozedUntil = millis() + Settings::ALARM_SNOOZE_MS;
                 alarmActive = false;
@@ -498,6 +617,9 @@ void uiTask(void* param) {
         if (encVal != lastEncVal) {
             int delta = encVal - lastEncVal;
             lastEncVal = encVal;
+            if (!alarmActive) {
+                buzzer.playNonBlocking(kUiTick, sizeof(kUiTick) / sizeof(Tone), false);
+            }
             menuSystem.navigate(delta);
         }
 
@@ -640,6 +762,10 @@ void setup() {
                 } else if (topic == MqttTopics::CMD_RESTART) {
                     log_i("Restart via MQTT");
                     ESP.restart();
+#if TONE_TEST_ON
+                } else if (topic == MqttTopics::TONE_TEST) {
+                    handleTestTone(payload);
+#endif
                 } else if (topic.startsWith(MqttTopics::CONFIG_PREFIX)) {
                     String key = topic.substring(strlen(MqttTopics::CONFIG_PREFIX));
                     if (key != "request" && key != "response") {

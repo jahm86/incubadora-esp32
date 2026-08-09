@@ -31,6 +31,14 @@ void Buzzer::stop() {
     xQueueSend(m_queue, &cmd, portMAX_DELAY);
 }
 
+bool Buzzer::playNonBlocking(const Tone* tones, uint8_t count, bool repeat) {
+    if (!m_enabled) {
+        return false;
+    }
+    Command cmd = {tones, count, repeat, false};
+    return xQueueSend(m_queue, &cmd, 0) == pdTRUE;
+}
+
 void Buzzer::setEnabled(bool enabled) {
     m_enabled = enabled;
     if (!m_enabled) {
@@ -97,7 +105,7 @@ void Buzzer::startBuffer(const Command& cmd) {
     m_repeat = cmd.repeat;
     m_index = 0;
     m_toneStart = millis();
-    setFrequency(static_cast<uint16_t>(m_tones[0].frequency) * 75);
+    setFrequency(static_cast<uint16_t>(m_tones[0].frequency) * 60);
     m_playing = true;
 }
 

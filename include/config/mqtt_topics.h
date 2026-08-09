@@ -33,4 +33,8 @@ constexpr const char* CONFIG_RESPONSE  = "incubadora/config/response";
 
 constexpr const char* CMD_RESTART      = "incubadora/cmd/restart";
 
+#if TONE_TEST_ON
+constexpr const char* TONE_TEST         = "incubadora/test/tone";
+#endif
+
 } // namespace MqttTopics

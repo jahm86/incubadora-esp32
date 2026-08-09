@@ -7,7 +7,7 @@
 
 struct Tone {
     uint8_t time;      // time=0 is 20ms, time=1 is 40ms, ..., time=254 is 5100ms, time=255 is forever
-    uint8_t frequency; // frequency=0 is 0Hz (Buzzer off), frequency=1 is 75Hz, ..., frequency=255 is 19125Hz
+    uint8_t frequency; // frequency=0 is 0Hz (Buzzer off), frequency=1 is 60Hz, ..., frequency=255 is 15300Hz
 };
 
 struct BufferTone {
@@ -21,6 +21,7 @@ public:
     void begin();
     void play(BufferTone buffer);
     void play(const Tone* tones, uint8_t count, bool repeat);
+    bool playNonBlocking(const Tone* tones, uint8_t count, bool repeat);
     void stop();
     void setEnabled(bool enabled);
     bool isEnabled() const { return m_enabled; }

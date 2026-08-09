@@ -13,7 +13,7 @@ public:
     void setValue(long val);
     long getValue();
     bool isPressed();
-    bool wasClicked();
+    int pollButton();
     void loop();
 
 private:

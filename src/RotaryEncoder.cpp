@@ -26,17 +26,13 @@ bool RotaryEncoderInput::isPressed() {
     return m_encoder.buttonPressed();
 }
 
-bool RotaryEncoderInput::wasClicked() {
+int RotaryEncoderInput::pollButton() {
     bool pressed = m_encoder.buttonPressed();
-    if (pressed && !m_lastButtonState) {
-        m_lastButtonState = true;
-        return false;
+    if (pressed != m_lastButtonState) {
+        m_lastButtonState = pressed;
+        return pressed ? 1 : -1;
     }
-    if (!pressed && m_lastButtonState) {
-        m_lastButtonState = false;
-        return true;
-    }
-    return false;
+    return 0;
 }
 
 void RotaryEncoderInput::loop() {
