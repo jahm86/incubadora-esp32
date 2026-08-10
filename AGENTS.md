@@ -48,7 +48,7 @@ log_e("Fallo: %s", error.c_str());    // strings
 ## Convenciones de código
 - Headers en `include/`, organizados por módulo; implementaciones en `src/*.cpp` (no header-only, salvo `AppState`/`IController` que son contenedores/interfaces)
 - Archivos web estáticos en `data/`
-- Sin comentarios en código a menos que sea necesario
+- Sin comentarios triviales; sí agregar comentarios de grupo breves en structs, enums y constexpr/const complejos para que los humanos entiendan el uso (p.ej. `MqttTopics`, `Tone`/`BufferTone`). No comentar cada elemento, solo el grupo o su uso
 - Nombres de clases en PascalCase, métodos en camelCase
 - Constantes en UPPER_CASE
 - Usar `#pragma once` en vez de include guards
@@ -118,20 +118,24 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 - ConfigManager completo: saves atómicos, backup, validación, factory reset, versionado
 - Persistencia de días de incubación: se guarda `incubation_elapsed_s` cada 10 min (sobrevive reinicios)
 - WiFi AP + web server funcionales, con modo STA cuando se configura SSID
-- Web server solo en modo AP; se habilita también en STA solo si se mantiene presionado el botón del encoder al arrancar
+- Web server: arranca en modo AP al bootear; en STA se activa/desactiva en runtime desde el menú Sistema (campo "Servidor Web", no persistente)
 - Display TFT ST7789, encoder rotativo y sensor AHT30 probados en hardware real
 - Controladores: Hysteresis, PID y LADRC implementados y seleccionables
-- Pendiente: probar MQTT con broker real
+- MQTT probado con broker real HiveMQ, incluyendo comunicación con TLS/SSL (certificado de HiveMQ) y usuario/contraseña
+- Buzzer: toggle persistente (`buzzer_enabled` en JSON), 4 melodías de alarma diferenciadas con prioridad fija (Temp Alta > Temp Baja > Hum Alta > Hum Baja, vía `alarmMask`), snooze de 10 min al presionar el botón y feedback sonoro (clic/tac) del encoder
+- Menú Sistema con confirmaciones para reiniciar, reset de días, restauración de fábrica y volteo manual ("Voltear Ahora")
 
 ## Arquitectura de tareas (FreeRTOS)
 - **loopTask** (core 1, Arduino `loop()`): sensor, control térmico, alarmas (solo evalúa y encola), volteo, días de incubación, MQTT, saves
-- **uiTask** (core 0): encoder, máquina de menú, render del display, dismiss/snooze de alarma (10 min), detección del botón al bootear
+- **uiTask** (core 0): encoder, máquina de menú, render del display, dismiss/snooze de alarma (10 min)
 - **buzzerTask** (core 0): reproduce melodías (estructuras `Tone`/`BufferTone`) por cola FreeRTOS, no bloquea el loop
 - **Watchdog**: `esp_task_wdt_init(10, true)`; cada task se suscribe (`esp_task_wdt_add(NULL)`) y alimenta (`esp_task_wdt_reset()`)
 - Estado compartido (`AppState`): el control lee sensor/config, la UI escribe config. Escrituras de 32 bits atómicas en ESP32 → races benignas aceptadas
 
 ## Menú y edición
-- Menú jerárquico (Root → Control / Temperatura / Humedad / Volteo / Sistema) con scroll en pantalla
-- Edit de valores: girar = ajustar, presionar = confirmar/salir (`cancel()` desde EditValue)
-- La config se guarda **solo al salir del modo edición** y en eventos discretos (MQTT, web), no en cada tick del encoder
+- Menú jerárquico (Root → Control / Temperatura / Humedad / Volteo / Sistema) con scroll en pantalla; `VISIBLE_ROWS=8` por pantalla y un indicador "v scroll" arriba a la derecha cuando la lista excede ese número (p.ej. Control)
+- Edit de valores: girar = ajustar un valor candidato, presionar = salir de la edición. **No hay cambios en vivo**: al salir (`onExitEdit`) se compara el valor con el original (`g_editOriginal`/`g_editCurrent`) y solo si cambió se aplica `def.set()`, se reinicia el controlador (setpoint/controller_type) y se guarda config
+- Servidor Web y Buzzer se editan por enum OFF/ON vía `fieldDefs()`, con la misma dinámica que el resto de campos (sin labels dinámicos)
+- Al volver de un submenú se restaura la selección/scroll previo (`m_prevSelected`/`m_prevScroll`)
+- La config se guarda solo en eventos discretos (salida de edición con cambios, MQTT, web), no en cada tick del encoder
 - `m_setpoint` vive en `IController` (base); `compute(float input)` usa el setpoint almacenado

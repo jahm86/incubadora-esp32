@@ -2,11 +2,13 @@
 
 namespace MqttTopics {
 
+// Datos a transmitir en tiempo real
 constexpr const char* TEMPERATURE     = "incubadora/status/temperatura";
 constexpr const char* HUMIDITY        = "incubadora/status/humedad";
 constexpr const char* DAYS            = "incubadora/status/dias";
 constexpr const char* ALARM           = "incubadora/status/alarma";
 
+// Parámetros de configuración para cambiar desde un cliente remoto MQTT (se pone el valor numérico en el mensaje)
 constexpr const char* CONFIG_PREFIX    = "incubadora/config/";
 constexpr const char* SETPOINT         = "incubadora/config/setpoint";
 constexpr const char* HUM_ON           = "incubadora/config/hum_on";
@@ -28,11 +30,16 @@ constexpr const char* B0_COEFF         = "incubadora/config/b0";
 constexpr const char* WC               = "incubadora/config/wc";
 constexpr const char* WO               = "incubadora/config/wo";
 
+// Solicitud de valores de los parámetros desde una aplicación remota. Se publica el nombre del parámetro
+// y el equipo responde en response con [nombre_parámetro]:[valor]
 constexpr const char* CONFIG_REQUEST   = "incubadora/config/request";
 constexpr const char* CONFIG_RESPONSE  = "incubadora/config/response";
 
+// Reinicia el controlador
 constexpr const char* CMD_RESTART      = "incubadora/cmd/restart";
 
+// Cuando se habilita (flag TONE_TEST_ON), permite mandar a sonar una melodía mientras el buzzer esté activo.
+// Detalles del formato del mensaje en el README.md
 #if TONE_TEST_ON
 constexpr const char* TONE_TEST         = "incubadora/test/tone";
 #endif
