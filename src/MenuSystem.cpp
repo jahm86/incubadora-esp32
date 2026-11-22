@@ -30,15 +30,9 @@ constexpr uint8_t NODE_HUM     = 3;
 constexpr uint8_t NODE_TURN    = 4;
 constexpr uint8_t NODE_SYSTEM  = 5;
 
-#define INFO_ID_NET  1
-#define INFO_ID_MQTT 2
-
-constexpr int8_t ACT_RESET_DAYS    = 1;
-constexpr int8_t ACT_FACTORY_RESET = 3;
-constexpr int8_t ACT_TURN_NOW      = 4;
-constexpr int8_t ACT_RESTART       = 6;
-
 #define FIELD(f) static_cast<int8_t>(f)
+#define ACT(a)   static_cast<int8_t>(MenuAction::a)
+#define INFO(i)  static_cast<int8_t>(InfoId::i)
 
 const MenuEntry kRootItems[] = {
     {"Control",     Kind::Submenu, NODE_CONTROL},
@@ -82,18 +76,18 @@ const MenuEntry kTurnItems[] = {
     {"Intervalo",     Kind::Field,   FIELD(MenuField::TurnInterval)},
     {"Duracion",      Kind::Field,   FIELD(MenuField::TurnDuration)},
     {"Pantalla Volteo", Kind::Field, FIELD(MenuField::TurnDisplayMode)},
-    {"Voltear Ahora", Kind::Confirm, ACT_TURN_NOW},
+    {"Voltear Ahora", Kind::Confirm, ACT(TurnNow)},
     {"Volver",        Kind::Back,    -1},
 };
 
 const MenuEntry kSystemItems[] = {
     {"Servidor Web",   Kind::Field,   FIELD(MenuField::WebEnabled)},
-    {"Ver IP / Modo",  Kind::Info,    INFO_ID_NET},
-    {"Estado MQTT",    Kind::Info,    INFO_ID_MQTT},
+    {"Ver IP / Modo",  Kind::Info,    INFO(Net)},
+    {"Estado MQTT",    Kind::Info,    INFO(Mqtt)},
     {"Buzzer",         Kind::Field,   FIELD(MenuField::BuzzerEnabled)},
-    {"Reiniciar",      Kind::Confirm, ACT_RESTART},
-    {"Reset Dias",     Kind::Confirm, ACT_RESET_DAYS},
-    {"Restaurar Fab.", Kind::Confirm, ACT_FACTORY_RESET},
+    {"Reiniciar",      Kind::Confirm, ACT(Restart)},
+    {"Reset Dias",     Kind::Confirm, ACT(ResetDays)},
+    {"Restaurar Fab.", Kind::Confirm, ACT(FactoryReset)},
     {"Volver",         Kind::Back,    -1},
 };
 
@@ -107,6 +101,8 @@ const MenuNode kNodes[] = {
 };
 
 #undef FIELD
+#undef ACT
+#undef INFO
 
 } // namespace
 
@@ -116,9 +112,9 @@ void MenuSystem::begin() {
     m_selected = 0;
     m_scroll = 0;
     m_editing = false;
-    m_info = 0;
+    m_info = InfoId::None;
     m_confirmChoice = false;
-    m_pendingAction = 0;
+    m_pendingAction = MenuAction::None;
     m_prevSelected = 0;
     m_prevScroll = 0;
 }
@@ -215,11 +211,11 @@ void MenuSystem::confirm() {
             }
             break;
         case Kind::Info:
-            m_info = e.target;
+            m_info = static_cast<InfoId>(e.target);
             m_page = MenuPage::Info;
             break;
         case Kind::Confirm:
-            m_pendingAction = e.target;
+            m_pendingAction = static_cast<MenuAction>(e.target);
             m_confirmChoice = false;
             m_page = MenuPage::Confirm;
             break;

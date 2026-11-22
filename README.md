@@ -31,11 +31,14 @@ Ver `include/config/pins.h` para más detalle. El ventilador va conectado direct
 - Menú Sistema: Servidor Web y Buzzer ON/OFF, reiniciar, reset de días y restauración de fábrica (con confirmación)
 - Persistencia de configuración en SPIFFS (JSON + backup)
 
-## Compilación y subida
+## Compilación, subida y testing
 
 ```bash
-# Compilar
+# Compilar firmware ESP32
 pio run
+
+# Ejecutar tests unitarios nativos (en PC, ultrarrápido)
+pio test -e native
 
 # Subir firmware
 pio run --target upload

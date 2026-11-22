@@ -61,4 +61,24 @@ enum class MenuPage : uint8_t {
     Confirm
 };
 
-using AlarmCallback = std::function<void(const String& message)>;
+enum class MenuAction : uint8_t {
+    None = 0,
+    ResetDays,
+    FactoryReset,
+    TurnNow,
+    Restart
+};
+
+enum class InfoId : uint8_t {
+    None = 0,
+    Net,
+    Mqtt
+};
+
+enum AlarmFlag : uint8_t {
+    AlarmNone     = 0,
+    AlarmTempLow  = 1 << 0,
+    AlarmTempHigh = 1 << 1,
+    AlarmHumLow   = 1 << 2,
+    AlarmHumHigh  = 1 << 3
+};

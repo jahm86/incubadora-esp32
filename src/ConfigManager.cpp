@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "core/ConfigManager.h"
+#include "config/FieldRegistry.h"
 
 ConfigManager::ConfigManager() {}
 
@@ -274,25 +275,15 @@ bool ConfigManager::readFromFile(const char* path, JsonDocument& doc) {
 }
 
 void ConfigManager::validateAndClamp() {
-    m_config.tempOffset     = constrain(m_config.tempOffset, -10.0f, 10.0f);
-    m_config.humOffset      = constrain(m_config.humOffset, -20.0f, 20.0f);
-    m_config.setpoint       = constrain(m_config.setpoint, 20.0f, 60.0f);
-    m_config.tempAlarmHigh  = constrain(m_config.tempAlarmHigh, m_config.setpoint, 60.0f);
-    m_config.tempAlarmLow   = constrain(m_config.tempAlarmLow, 0.0f, m_config.setpoint);
-    m_config.humSetpointOn  = constrain(m_config.humSetpointOn, 0.0f, 100.0f);
-    m_config.humSetpointOff = constrain(m_config.humSetpointOff, m_config.humSetpointOn, 100.0f);
-    m_config.humAlarmHigh   = constrain(m_config.humAlarmHigh, 0.0f, 100.0f);
-    m_config.humAlarmLow    = constrain(m_config.humAlarmLow, 0.0f, 100.0f);
-    m_config.turnInterval   = constrain(m_config.turnInterval, (uint32_t)1, (uint32_t)1440);
-    m_config.turnDuration   = constrain(m_config.turnDuration, (uint32_t)1, (uint32_t)60);
-    m_config.turnDisplayMode = constrain(m_config.turnDisplayMode, (uint8_t)0, (uint8_t)1);
-    m_config.kp             = constrain(m_config.kp, 0.0f, 1000.0f);
-    m_config.ki             = constrain(m_config.ki, 0.0f, 100.0f);
-    m_config.kd             = constrain(m_config.kd, 0.0f, 100.0f);
-    m_config.hysteresis     = constrain(m_config.hysteresis, 0.1f, 5.0f);
-    m_config.b0             = constrain(m_config.b0, 1.0f, 1000.0f);
-    m_config.wc             = constrain(m_config.wc, 0.1f, 500.0f);
-    m_config.wo             = constrain(m_config.wo, 0.1f, 500.0f);
+    for (size_t i = 0; i < FieldRegistry::count(); i++) {
+        const FieldDef* def = &FieldRegistry::all()[i];
+        if (def->key && def->key[0] != '\0') {
+            float val = def->get(m_config);
+            float clamped = FieldRegistry::clampValue(*def, val);
+            def->set(m_config, clamped);
+        }
+    }
+    FieldRegistry::clampCrossDependencies(m_config);
 }
 
 bool ConfigManager::migrateConfig(JsonDocument& doc, uint32_t fileVersion) {

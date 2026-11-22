@@ -1,4 +1,12 @@
+#ifdef ARDUINO
 #include <Arduino.h>
+#else
+#include <algorithm>
+template <typename T>
+static inline T constrain(T amt, T low, T high) {
+    return (amt < low) ? low : ((amt > high) ? high : amt);
+}
+#endif
 #include "control/LADRCController.h"
 
 LADRCController::LADRCController(float b0, float wc, float wo)

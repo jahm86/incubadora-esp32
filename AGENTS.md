@@ -12,8 +12,11 @@
 
 ## Comandos útiles
 ```bash
-# Compilar
+# Compilar firmware ESP32
 pio run
+
+# Ejecutar tests unitarios nativos (en PC, ultrarrápido sin hardware)
+pio test -e native
 
 # Subir firmware
 pio run --target upload
@@ -65,7 +68,10 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 │   ├── script.js
 │   └── style.css
 ├── include/
+│   ├── alarm/
+│   │   └── AlarmManager.h
 │   ├── config/
+│   │   ├── FieldRegistry.h
 │   │   ├── mqtt_topics.h
 │   │   ├── pins.h
 │   │   └── settings.h
@@ -76,7 +82,8 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 │   │   └── PIDController.h
 │   ├── core/
 │   │   ├── AppState.h
-│   │   └── ConfigManager.h
+│   │   ├── ConfigManager.h
+│   │   └── IncubationTracker.h
 │   ├── display/
 │   │   ├── DisplayManager.h
 │   │   └── MenuSystem.h
@@ -95,47 +102,53 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 │   ├── types.h
 │   └── web/
 │       └── WebServer.h
-└── src/
-    ├── AHT30.cpp
-    ├── Buzzer.cpp
-    ├── ConfigManager.cpp
-    ├── DisplayManager.cpp
-    ├── EggTray.cpp
-    ├── Heater.cpp
-    ├── Humidifier.cpp
-    ├── HysteresisController.cpp
-    ├── LADRCController.cpp
-    ├── main.cpp
-    ├── MenuSystem.cpp
-    ├── MqttManager.cpp
-    ├── PIDController.cpp
-    ├── RotaryEncoder.cpp
-    ├── WebServer.cpp
-    └── WiFiManager.cpp
+├── src/
+│   ├── AHT30.cpp
+│   ├── AlarmManager.cpp
+│   ├── Buzzer.cpp
+│   ├── ConfigManager.cpp
+│   ├── DisplayManager.cpp
+│   ├── EggTray.cpp
+│   ├── FieldRegistry.cpp
+│   ├── Heater.cpp
+│   ├── Humidifier.cpp
+│   ├── HysteresisController.cpp
+│   ├── IncubationTracker.cpp
+│   ├── LADRCController.cpp
+│   ├── main.cpp
+│   ├── MenuSystem.cpp
+│   ├── MqttManager.cpp
+│   ├── PIDController.cpp
+│   ├── RotaryEncoder.cpp
+│   ├── WebServer.cpp
+│   └── WiFiManager.cpp
+└── test/
+    ├── local/
+    └── test_controllers/
+        └── test_controllers.cpp
 ```
 
 ## Estado actual
-- ConfigManager completo: saves atómicos, backup, validación, factory reset, versionado
-- Persistencia de días de incubación: se guarda `incubation_elapsed_s` cada 10 min (sobrevive reinicios)
-- WiFi AP + web server funcionales, con modo STA cuando se configura SSID
-- Web server: arranca en modo AP al bootear; en STA se activa/desactiva en runtime desde el menú Sistema (campo "Servidor Web", no persistente)
-- Display TFT ST7789, encoder rotativo y sensor AHT30 probados en hardware real
-- Controladores: Hysteresis, PID y LADRC implementados y seleccionables
-- MQTT probado con broker real HiveMQ, incluyendo comunicación con TLS/SSL (certificado de HiveMQ) y usuario/contraseña
-- Buzzer: toggle persistente (`buzzer_enabled` en JSON), 4 melodías de alarma diferenciadas con prioridad fija (Temp Alta > Temp Baja > Hum Alta > Hum Baja, vía `alarmMask`), snooze de 10 min al presionar el botón y feedback sonoro (clic/tac) del encoder
-- Menú Sistema con confirmaciones para reiniciar, reset de días, restauración de fábrica y volteo manual ("Voltear Ahora")
+- **ConfigManager & FieldRegistry**: `FieldRegistry` como Single Source of Truth para rangos, labels, validación centralizada y dependencias cruzadas de los 22 campos; persistencia atómica con backup en SPIFFS.
+- **IncubationTracker**: Conteo monótono de tiempo y días con base de 64 bits (`esp_timer_get_time()`), inmune al overflow de 49.7 días; persistencia periódica de segundos en SPIFFS.
+- **AlarmManager**: Módulo autónomo desacoplado que gestiona 4 melodías diferenciadas, prioridades fijas (Temp Alta > Temp Baja > Hum Alta > Hum Baja), snooze de 10 min y publicación a MQTT vía hook.
+- **DisplayManager Anti-flickering**: Renderizado sin parpadeo mediante transiciones limpias de pantalla (`switchScreen`), `setTextPadding()` para sobreescritura directa en celda y *dirty tracking* por fila/componente.
+- **Baja latencia en UI**: En `uiTask`, las acciones del encoder (giro, clic, navegación) disparan actualización inmediata en el ciclo de 10 ms sin esperar el refresco periódico de 250 ms.
+- **Red resiliente no bloqueante**: `WiFiManager` y `MqttManager` con reconexión asíncrona periódica (backoff de 10s a 30s) sin congelar la tarea de control térmico; soporte para cambios de credenciales en caliente vía `AppState`.
+- **Pruebas unitarias nativas**: Entorno `[env:native]` con Unity para ejecución ultrarrápida de tests de algoritmos térmicos (`PIDController`, `HysteresisController`, `LADRCController`) en PC mediante `pio test -e native`.
+- **Control térmico**: Hysteresis, PID y LADRC implementados, testeados matemáticamente y seleccionables en runtime.
 
 ## Arquitectura de tareas (FreeRTOS)
-- **loopTask** (core 1, Arduino `loop()`): sensor, control térmico, alarmas (solo evalúa y encola), volteo, días de incubación, MQTT, saves
-- **uiTask** (core 0): encoder, máquina de menú, render del display, dismiss/snooze de alarma (10 min)
-- **buzzerTask** (core 0): reproduce melodías (estructuras `Tone`/`BufferTone`) por cola FreeRTOS, no bloquea el loop
+- **loopTask** (core 1, Arduino `loop()`): sensor, control térmico, alarmas (`AlarmManager`), volteo, días (`IncubationTracker`), reconexión de red (`WiFiManager`/`MqttManager`), saves y peticiones atómicas
+- **uiTask** (core 0): encoder, máquina de menú, renderizado sin parpadeo de pantalla (`DisplayManager`), snooze de alarma (10 min)
+- **buzzerTask** (core 0): reproduce melodías (`Tone`/`BufferTone`) por cola FreeRTOS, sin bloquear el loop
 - **Watchdog**: `esp_task_wdt_init(10, true)`; cada task se suscribe (`esp_task_wdt_add(NULL)`) y alimenta (`esp_task_wdt_reset()`)
-- Estado compartido (`AppState`): el control lee sensor/config, la UI escribe config. Escrituras de 32 bits atómicas en ESP32 → races benignas aceptadas
+- **Estado compartido (`AppState`)**: mutex para `SystemConfig`, banderas atómicas de solicitud (`requestConfigSave`, `requestControllerInit`, `requestWifiReconnect`, etc.) para canalizar cambios hacia `loopTask` sin condiciones de carrera.
 
 ## Menú y edición
-- Menú jerárquico (Root → Control / Temperatura / Humedad / Volteo / Sistema) con scroll en pantalla; `VISIBLE_ROWS=8` por pantalla y un indicador "v scroll" arriba a la derecha cuando la lista excede ese número (p.ej. Control)
-- Edit de valores: girar = ajustar un valor candidato, presionar = salir de la edición. **No hay cambios en vivo**: al salir (`onExitEdit`) se compara el valor con el original (`g_editOriginal`/`g_editCurrent`) y solo si cambió se aplica `def.set()`, se reinicia el controlador (setpoint/controller_type) y se guarda config
-- Servidor Web y Buzzer se editan por enum OFF/ON vía `fieldDefs()`, con la misma dinámica que el resto de campos (sin labels dinámicos)
-- Al volver de un submenú se restaura la selección/scroll previo (`m_prevSelected`/`m_prevScroll`)
-- La config se guarda solo en eventos discretos (salida de edición con cambios, MQTT, web), no en cada tick del encoder
+- Menú jerárquico (Root → Control / Temperatura / Humedad / Volteo / Sistema) con scroll en pantalla; `VISIBLE_ROWS=8` por pantalla e indicador "v scroll" cuando excede ese número
+- Edit de valores: girar = ajustar valor candidato, presionar = confirmar. Se valida y acota contra `FieldRegistry`
+- Servidor Web y Buzzer se editan vía `FieldRegistry` con la misma dinámica que el resto de campos
+- Al volver de un submenú se restaura la selección/scroll previo
+- La config se guarda solo en eventos discretos (salida de edición con cambios, MQTT, web), nunca en cada tick del encoder
 - `m_setpoint` vive en `IController` (base); `compute(float input)` usa el setpoint almacenado

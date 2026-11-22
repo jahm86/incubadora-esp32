@@ -1,4 +1,6 @@
+#ifdef ARDUINO
 #include <Arduino.h>
+#endif
 #include "control/HysteresisController.h"
 
 HysteresisController::HysteresisController(float hysteresis)

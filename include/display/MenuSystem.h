@@ -36,7 +36,7 @@ public:
     using ValueChangeCallback = std::function<void(int)>;
     using EnterEditCallback   = std::function<void(MenuField)>;
     using ExitEditCallback    = std::function<void(MenuField)>;
-    using ActionCallback      = std::function<void(uint8_t)>;
+    using ActionCallback      = std::function<void(MenuAction)>;
 
     void begin();
     void openMenu();
@@ -47,9 +47,9 @@ public:
     uint8_t scrollOffset() const { return m_scroll; }
     MenuField editField() const { return m_editField; }
 
-    uint8_t infoId() const { return m_info; }
+    InfoId infoId() const { return m_info; }
     bool confirmChoice() const { return m_confirmChoice; }
-    uint8_t pendingAction() const { return m_pendingAction; }
+    MenuAction pendingAction() const { return m_pendingAction; }
 
     const char* currentTitle() const;
     uint8_t currentItemCount() const;
@@ -74,9 +74,9 @@ private:
     bool m_editing = false;
     MenuField m_editField = MenuField::Setpoint;
 
-    uint8_t m_info = 0;
+    InfoId m_info = InfoId::None;
     bool m_confirmChoice = false;
-    uint8_t m_pendingAction = 0;
+    MenuAction m_pendingAction = MenuAction::None;
 
     uint8_t m_prevSelected = 0;
     uint8_t m_prevScroll = 0;

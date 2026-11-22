@@ -7,15 +7,18 @@
 #include "types.h"
 #include "core/ConfigManager.h"
 
+class AppState;
+
 class WebServerManager {
 public:
     WebServerManager();
-    void begin(ConfigManager* config);
-    void start(ConfigManager* config);
+    void begin(ConfigManager* config, AppState* appState);
+    void start(ConfigManager* config, AppState* appState);
     void stop();
     bool isRunning() { return m_server.isRunning(); }
 
 private:
     PsychicHttpServer m_server;
     ConfigManager* m_config = nullptr;
+    AppState* m_appState = nullptr;
 };

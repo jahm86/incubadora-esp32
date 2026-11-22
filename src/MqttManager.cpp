@@ -4,6 +4,58 @@
 MqttManager::MqttManager() : m_client() {}
 
 void MqttManager::begin(const SystemConfig& config) {
+    if (!m_callbacksAttached) {
+        m_client.onConnect([this](bool sessionPresent) {
+            m_connected = true;
+            m_state = MqttConnectionState::Conectado;
+            subscribe();
+            log_i("MQTT conectado exitosamente a broker");
+        });
+
+        m_client.onDisconnect([this](bool reason) {
+            m_connected = false;
+            if (m_state == MqttConnectionState::Conectado) {
+                m_state = MqttConnectionState::Conectando;
+            }
+            log_w("MQTT desconectado de broker");
+        });
+
+        m_client.onError([this](esp_mqtt_error_codes_t error) {
+            if (error.error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+                switch (error.connect_return_code) {
+                    case MQTT_CONNECTION_REFUSE_BAD_USERNAME:
+                    case MQTT_CONNECTION_REFUSE_NOT_AUTHORIZED:
+                        m_state = MqttConnectionState::AuthFallido;
+                        break;
+                    default:
+                        m_state = MqttConnectionState::ServidorNoEncontrado;
+                        break;
+                }
+            } else if (error.error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+                if (error.esp_tls_cert_verify_flags != 0) {
+                    m_state = MqttConnectionState::CertRechazado;
+                } else {
+                    m_state = MqttConnectionState::TlsFallido;
+                }
+            } else {
+                m_state = MqttConnectionState::ServidorNoEncontrado;
+            }
+            log_w("MQTT error -> %s", stateText());
+        });
+
+        m_client.onMessage([this](char* topic, char* payload, int retain, int qos, bool dup) {
+            if (m_onMessage) {
+                m_onMessage(String(topic), String(payload));
+            }
+        });
+
+        m_callbacksAttached = true;
+    }
+
+    startConnection(config);
+}
+
+void MqttManager::startConnection(const SystemConfig& config) {
     if (config.mqttServer.length() == 0) {
         m_state = MqttConnectionState::NoConfigurado;
         return;
@@ -34,52 +86,40 @@ void MqttManager::begin(const SystemConfig& config) {
         m_client.setCACert(config.mqttCert.c_str());
     }
 
-    m_client.onConnect([this](bool sessionPresent) {
-        m_connected = true;
-        m_state = MqttConnectionState::Conectado;
-        subscribe();
-    });
-
-    m_client.onDisconnect([this](bool reason) {
-        m_connected = false;
-        if (m_state == MqttConnectionState::Conectado) {
-            m_state = MqttConnectionState::Conectando;
-        }
-    });
-
-    m_client.onError([this](esp_mqtt_error_codes_t error) {
-        if (error.error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
-            switch (error.connect_return_code) {
-                case MQTT_CONNECTION_REFUSE_BAD_USERNAME:
-                case MQTT_CONNECTION_REFUSE_NOT_AUTHORIZED:
-                    m_state = MqttConnectionState::AuthFallido;
-                    break;
-                default:
-                    m_state = MqttConnectionState::ServidorNoEncontrado;
-                    break;
-            }
-        } else if (error.error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-            if (error.esp_tls_cert_verify_flags != 0) {
-                m_state = MqttConnectionState::CertRechazado;
-            } else {
-                m_state = MqttConnectionState::TlsFallido;
-            }
-        } else {
-            m_state = MqttConnectionState::ServidorNoEncontrado;
-        }
-        log_w("MQTT error -> %s", stateText());
-    });
-
-    m_client.onMessage([this](char* topic, char* payload, int retain, int qos, bool dup) {
-        if (m_onMessage) {
-            m_onMessage(String(topic), String(payload));
-        }
-    });
-
+    m_client.setAutoReconnect(true);
     m_client.connect();
+    m_lastMqttAttempt = millis();
 }
 
-void MqttManager::setOnMessage(void (*cb)(const String&, const String&)) {
+void MqttManager::reconnect(const SystemConfig& config) {
+    if (m_connected) {
+        m_client.disconnect();
+    }
+    startConnection(config);
+}
+
+void MqttManager::loop(bool wifiConnected, const SystemConfig& config) {
+    if (!wifiConnected || config.mqttServer.length() == 0) {
+        m_connected = false;
+        if (config.mqttServer.length() == 0) {
+            m_state = MqttConnectionState::NoConfigurado;
+        }
+        return;
+    }
+
+    if (!m_connected) {
+        uint32_t now = millis();
+        if (now - m_lastMqttAttempt >= 15000) {
+            m_lastMqttAttempt = now;
+            if (m_state != MqttConnectionState::AuthFallido && m_state != MqttConnectionState::CertRechazado) {
+                log_d("Reintentando conexion MQTT...");
+                m_client.connect();
+            }
+        }
+    }
+}
+
+void MqttManager::setOnMessage(MessageCallback cb) {
     m_onMessage = cb;
 }
 
@@ -102,17 +142,18 @@ bool MqttManager::publish(const char* topic, int32_t value) {
 
 void MqttManager::disconnect() {
     m_client.disconnect();
+    m_connected = false;
 }
 
 const char* MqttManager::stateText() const {
     switch (m_state) {
-        case MqttConnectionState::NoConfigurado:    return "No configurado";
-        case MqttConnectionState::Conectando:       return "Conectando...";
-        case MqttConnectionState::Conectado:        return "Conectado";
-        case MqttConnectionState::AuthFallido:      return "Error de autenticacion";
-        case MqttConnectionState::CertRechazado:    return "Error de certificado";
+        case MqttConnectionState::NoConfigurado:        return "No configurado";
+        case MqttConnectionState::Conectando:           return "Conectando...";
+        case MqttConnectionState::Conectado:            return "Conectado";
+        case MqttConnectionState::AuthFallido:          return "Error de autenticacion";
+        case MqttConnectionState::CertRechazado:        return "Error de certificado";
         case MqttConnectionState::ServidorNoEncontrado: return "Servidor no encontrado";
-        case MqttConnectionState::TlsFallido:       return "Handshake TLS fallo";
+        case MqttConnectionState::TlsFallido:           return "Handshake TLS fallo";
     }
     return "Desconocido";
 }
