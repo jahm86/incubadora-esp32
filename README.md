@@ -52,6 +52,15 @@ pio run --target upload && pio run --target uploadfs
 
 **Nota:** Se usa la partición `huge_app.csv` (3MB app + 1MB SPIFFS).
 
+### Suite de pruebas nativas (`[env:native]`)
+El proyecto cuenta con 44 pruebas unitarias nativas ejecutadas bajo Unity en PC sin requerir hardware físico, gracias a una capa de shims ligeros (`test/mocks/`):
+- **Controladores térmicos** (`test_controllers`): Verificación matemática y dinámica de respuesta para algoritmos PID, Hysteresis y LADRC.
+- **Registro de configuración** (`test_field_registry`): Validación centralizada de los 22 campos del sistema, clamping y consistencia cruzada de seguridad (alarmas térmicas vs setpoint y humidificador ON/OFF).
+- **Máquina de menús** (`test_menu_system`): Navegación con wrap-around, paginación con scroll dinámico de 8 filas, memoria de submenús, ciclo de edición y diálogos de confirmación.
+- **Rastreo de incubación** (`test_incubation_tracker`): Base temporal de 64 bits verificada matemáticamente contra desbordamiento tras 55+ y 100 días de funcionamiento continuo.
+- **Gestor de alarmas** (`test_alarm_manager`): Detección por umbrales, jerarquía estricta de prioridades sonoras, silenciamiento temporal (*snooze* de 10 min) y hooks MQTT.
+- **Bandeja de volteo** (`test_egg_tray`): Control de estados de pines GPIO e idempotencia de activación.
+
 ## Build flags relevantes
 
 - `CORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_INFO` — Habilita logs por Serial (`log_i`, `log_e`, `log_w`). Para debug más fino cambiar a `ARDUHAL_LOG_LEVEL_DEBUG` (incluye `log_d`).

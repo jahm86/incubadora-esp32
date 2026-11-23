@@ -124,8 +124,26 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 │   └── WiFiManager.cpp
 └── test/
     ├── local/
-    └── test_controllers/
-        └── test_controllers.cpp
+    ├── mocks/
+    │   ├── Arduino.h
+    │   ├── BuzzerMock.h
+    │   ├── esp_task_wdt.h
+    │   ├── esp_timer.h
+    │   └── freertos/
+    │       ├── FreeRTOS.h
+    │       └── queue.h
+    ├── test_alarm_manager/
+    │   └── test_alarm_manager.cpp
+    ├── test_controllers/
+    │   └── test_controllers.cpp
+    ├── test_egg_tray/
+    │   └── test_egg_tray.cpp
+    ├── test_field_registry/
+    │   └── test_field_registry.cpp
+    ├── test_incubation_tracker/
+    │   └── test_incubation_tracker.cpp
+    └── test_menu_system/
+        └── test_menu_system.cpp
 ```
 
 ## Estado actual
@@ -135,7 +153,13 @@ Si el agente intenta leer el puerto serial del ESP32 mediante scripts de Python 
 - **DisplayManager Anti-flickering**: Renderizado sin parpadeo mediante transiciones limpias de pantalla (`switchScreen`), `setTextPadding()` para sobreescritura directa en celda y *dirty tracking* por fila/componente.
 - **Baja latencia en UI**: En `uiTask`, las acciones del encoder (giro, clic, navegación) disparan actualización inmediata en el ciclo de 10 ms sin esperar el refresco periódico de 250 ms.
 - **Red resiliente no bloqueante**: `WiFiManager` y `MqttManager` con reconexión asíncrona periódica (backoff de 10s a 30s) sin congelar la tarea de control térmico; soporte para cambios de credenciales en caliente vía `AppState`.
-- **Pruebas unitarias nativas**: Entorno `[env:native]` con Unity para ejecución ultrarrápida de tests de algoritmos térmicos (`PIDController`, `HysteresisController`, `LADRCController`) en PC mediante `pio test -e native`.
+- **Pruebas unitarias nativas (44 tests)**: Entorno `[env:native]` con Unity para ejecución ultrarrápida (~4.6 s en host local) sin hardware, aislado mediante shims en `test/mocks/`:
+  - **Control térmico**: Algoritmos PID, Hysteresis y LADRC testeados matemáticamente.
+  - **FieldRegistry**: 22 campos, búsqueda por clave, getters/setters, acotamiento y dependencias de seguridad.
+  - **MenuSystem**: Navegación cíclica con wrap-around, scroll dinámico (`VISIBLE_ROWS=8`), memoria de submenú, ciclo de edición y diálogos de confirmación.
+  - **IncubationTracker**: Base de 64 bits con verificación matemática de no desbordamiento tras 55+ y 100 días.
+  - **AlarmManager**: Jerarquía de prioridades de melodías, silenciado (*snooze* de 10 min) y hooks MQTT.
+  - **EggTray**: Control de pines GPIO e idempotencia de activación.
 - **Control térmico**: Hysteresis, PID y LADRC implementados, testeados matemáticamente y seleccionables en runtime.
 
 ## Arquitectura de tareas (FreeRTOS)
